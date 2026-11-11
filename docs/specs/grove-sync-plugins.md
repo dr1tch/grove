@@ -21,7 +21,7 @@ Why this shape: the renderer already reaches files only through the `window.foli
 ## Sync rules
 
 1. Never force-push, never rewrite history, never delete a local file because of a remote change without a recovery copy.
-2. Commit is debounced (about 30 s after the last save) with message `Grove: <device> <time>`. Pull uses rebase; on conflict Grove aborts the rebase and shows the existing comparison dialog (Keep mine, Use remote, Keep both) per file.
+2. Commit is debounced (about 30 s after the last save) with message `Grove: <device> <time>`. Pull merges (no rebase). When both devices changed the same lines, the local version stays in place and the remote version is saved beside it as `<name> (conflict <device> <date>).<ext>`; a banner offers to compare them side by side. A file deleted on one device and edited on the other is kept.
 3. Unsaved drafts are never committed. Dirty open files are not overwritten by a pull; they go through the existing external-change flow.
 4. `.folio/`, `.trash/`, recovery copies and OS junk go in `.gitignore`.
 5. Files over 50 MB are not committed; Grove lists them. GitHub rejects files over 100 MB. Git LFS is a later decision.

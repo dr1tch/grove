@@ -2,15 +2,20 @@
 
 > **For agentic workers:** use superpowers:executing-plans or superpowers:subagent-driven-development. Spec: `docs/specs/grove-sync-plugins.md`. Leave git changes in the Grove repo uncommitted unless the user asks.
 
-Each phase ships on its own as a new Grove version. Do not start a phase until the previous one passes its checks and is installed.
+Each phase ships on its own as a new Grove version. Do not start a phase until the previous one passes its checks and is installed. Each phase gets its own detailed plan when it starts, written against the code as it is then.
+
+**Order:** 1. Git sync (0.5.0, detailed plan: `2026-11-11-grove-git-sync.md`). 2. Windows port (0.6.0). 3. Web and phone (0.7.0). 4. Grove plugins (0.8.0). 5. Obsidian plugins (0.9.0).
 
 ## Phase 1: Desktop Git sync (about 1 day)
 
-- [ ] Settings > Sync: connect the vault to a new or existing private GitHub repo (`gh repo create --private` or a pasted URL). Write `.gitignore`. Show what will be committed first, including large files that will be skipped.
-- [ ] Main-process sync worker using system `git`: debounced commit after saves, pull --rebase on open, focus and every 5 minutes, push after commit. One sync at a time per vault. Never force.
-- [ ] On rebase conflict: abort, keep both versions, open the existing comparison dialog per file. Dirty open files go through the existing external-change flow.
-- [ ] Footer status (synced, syncing, offline, conflict, error, last sync time) and a Sync now button.
-- [ ] Tests: two clones of a local bare repo; edit on both sides, conflict, offline queue, large-file skip, dirty-draft protection. Native QA script `scripts/sync-qa.mjs`.
+See the detailed plan `docs/superpowers/plans/2026-11-11-grove-git-sync.md`.
+
+## Phase 1b: Windows port (about 1 to 2 days)
+
+- [ ] Replace `resources/vault_io.py` Linux calls (openat2, renameat2, O_PATH, flock) with a Node implementation behind the same request/response contract, keeping path confinement (realpath plus no-symlink checks), atomic replace (write temp, `ReplaceFileW`-style rename) and locking (lock file with exclusive create). Linux keeps the Python helper.
+- [ ] Make LibreOffice, bubblewrap and `pdftotext` lookups platform-aware; features without a Windows equivalent show a clear message.
+- [ ] Add `win` target (NSIS) and a `windows-latest` job to `release.yml`; run `vp test --run` and the vault race tests on Windows in CI.
+- [ ] Verify on a real Windows machine with the user.
 
 ## Phase 2: Web and phone app (about 3 to 5 days)
 
