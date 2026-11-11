@@ -1,0 +1,24 @@
+name: Check Folio
+on: [push, pull_request]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Vite+
+        run: curl -fsSL https://vite.plus | VP_NODE_MANAGER=no bash
+      - name: Install dependencies
+        run: |
+          . "$HOME/.config/vite-plus/env"
+          vp install --frozen-lockfile
+          node node_modules/electron/install.js
+      - name: Check, test and build
+        run: |
+          . "$HOME/.config/vite-plus/env"
+          vp check
+          vp test --run
+          python3 scripts/vault-races.py
+          vp run build

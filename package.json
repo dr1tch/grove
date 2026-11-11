@@ -1,0 +1,131 @@
+{
+  "name": "folio",
+  "version": "0.4.1",
+  "private": true,
+  "description": "A home for your notes, drawings and ideas",
+  "homepage": "https://quiet-atlas-studio.lovable.app/",
+  "license": "UNLICENSED",
+  "author": "Folio",
+  "type": "module",
+  "main": "out/main/index.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "dependencies": {
+    "chokidar": "latest",
+    "mdast-util-from-markdown": "2.1.0",
+    "parse5": "^8.1.1",
+    "pdfjs-dist": "latest",
+    "postcss": "8.5.32",
+    "postcss-value-parser": "^4.2.0"
+  },
+  "devDependencies": {
+    "@codemirror/commands": "latest",
+    "@codemirror/lang-markdown": "latest",
+    "@codemirror/language": "latest",
+    "@codemirror/language-data": "^6.5.2",
+    "@codemirror/state": "latest",
+    "@codemirror/view": "latest",
+    "@excalidraw/excalidraw": "latest",
+    "@fontsource/geist": "latest",
+    "@fontsource/jetbrains-mono": "latest",
+    "@fontsource/source-serif-4": "latest",
+    "@lezer/highlight": "latest",
+    "@tailwindcss/vite": "^4.0.0",
+    "@types/mdast": "4.0.4",
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "@vitejs/plugin-react": "latest",
+    "diff": "latest",
+    "electron": "45.3.0",
+    "electron-builder": "latest",
+    "electron-vite": "^6.0.0",
+    "lucide-react": "latest",
+    "lz-string": "^1.5.0",
+    "mermaid": "latest",
+    "playwright": "latest",
+    "prettier": "^3.10.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-markdown": "latest",
+    "rehype-sanitize": "latest",
+    "remark-gfm": "latest",
+    "shiki": "latest",
+    "tailwindcss": "^4.0.0",
+    "typescript": "latest",
+    "vite": "npm:@voidzero-dev/vite-plus-core@latest",
+    "vite-plus": "^1.6.0"
+  },
+  "packageManager": "pnpm@10.32.1",
+  "build": {
+    "appId": "app.folio.desktop",
+    "productName": "Grove",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "out/**/*",
+      "resources/**/*"
+    ],
+    "linux": {
+      "target": [
+        "deb",
+        "AppImage"
+      ],
+      "icon": "build/icon.png",
+      "category": "Office",
+      "desktop": {
+        "entry": {
+          "Categories": "Office;TextEditor;",
+          "MimeType": "text/markdown;application/x-excalidraw;"
+        }
+      },
+      "maintainer": "dr1tch",
+      "syncDesktopName": true,
+      "executableName": "folio"
+    },
+    "fileAssociations": [
+      {
+        "ext": [
+          "md",
+          "markdown"
+        ],
+        "name": "Markdown",
+        "mimeType": "text/markdown"
+      },
+      {
+        "ext": "excalidraw",
+        "name": "Excalidraw",
+        "mimeType": "application/x-excalidraw"
+      }
+    ],
+    "asarUnpack": [
+      "resources/**/*"
+    ],
+    "deb": {
+      "depends": [
+        "libgtk-3-0",
+        "libnotify4",
+        "libnss3",
+        "libxss1",
+        "libxtst6",
+        "xdg-utils",
+        "libatspi2.0-0",
+        "libuuid1",
+        "libsecret-1-0",
+        "python3",
+        "bubblewrap",
+        "fontconfig"
+      ],
+      "recommends": [
+        "libreoffice-writer",
+        "libreoffice-calc",
+        "libreoffice-impress"
+      ]
+    },
+    "electronDist": "node_modules/electron/dist",
+    "executableName": "folio"
+  },
+  "desktopName": "app.folio.desktop.desktop"
+}

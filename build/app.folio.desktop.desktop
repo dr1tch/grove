@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Grove
+Comment=A quiet place for notes, drawings and ideas
+Exec=folio %F
+Icon=app.folio.desktop
+Type=Application
+Categories=Office;TextEditor;
+MimeType=text/markdown;application/x-excalidraw;
+Terminal=false
