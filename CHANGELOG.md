@@ -2,7 +2,7 @@
 
 All notable changes to Grove. Versions match the GitHub release tags. The apt package is named `folio`.
 
-## Unreleased
+## 0.4.5 (2026-11-11)
 
 ### Changed
 
