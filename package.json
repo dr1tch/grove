@@ -1,6 +1,6 @@
 {
   "name": "folio",
-  "version": "0.4.1",
+  "version": "0.4.5",
   "private": true,
   "description": "A home for your notes, drawings and ideas",
   "homepage": "https://github.com/dr1tch/grove",
@@ -78,7 +78,7 @@
       "desktop": {
         "entry": {
           "Categories": "Office;TextEditor;",
-          "MimeType": "text/markdown;application/x-excalidraw;"
+          "MimeType": "text/plain;text/markdown;text/x-markdown;application/x-excalidraw;"
         }
       },
       "maintainer": "dr1tch",

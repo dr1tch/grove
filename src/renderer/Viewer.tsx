@@ -8,9 +8,19 @@ import {
   Maximize,
   Minimize,
   Scan,
+  Maximize2,
+  Minimize2,
+  Play,
 } from "lucide-react";
 import { Tooltip } from "./Tooltip";
 import { PdfSearch } from "./PdfSearch";
+import {
+  AudioPlayer,
+  handleMediaKey,
+  PlayerControls,
+  togglePlay,
+  useMediaState,
+} from "./MediaPlayer";
 import type { Entry, PreviewInfo, ViewState } from "../shared/types";
 import * as pdfjs from "pdfjs-dist";
 import pdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
@@ -61,6 +71,38 @@ function DocumentPreview({
   } | null>(null);
   const [dragging, setDragging] = useState(false);
   const suppressClick = useRef(false);
+  const shell = useRef<HTMLElement>(null);
+  const player = useRef<HTMLVideoElement>(null);
+  const playback = useMediaState(player);
+  const clickTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const hideTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const [idle, setIdle] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
+  useEffect(() => {
+    const change = () => setFullscreen(document.fullscreenElement === shell.current);
+    document.addEventListener("fullscreenchange", change);
+    return () => {
+      document.removeEventListener("fullscreenchange", change);
+      clearTimeout(hideTimer.current);
+      clearTimeout(clickTimer.current);
+    };
+  }, []);
+  // Controls hide after 3 s of no pointer movement while a video plays, like the reference player.
+  const wake = () => {
+    setIdle(false);
+    clearTimeout(hideTimer.current);
+    if (playback.playing) hideTimer.current = setTimeout(() => setIdle(true), 3000);
+  };
+  useEffect(() => {
+    if (!playback.playing) {
+      clearTimeout(hideTimer.current);
+      setIdle(false);
+    } else if (video) hideTimer.current = setTimeout(() => setIdle(true), 3000);
+  }, [playback.playing]);
+  const toggleFullscreen = () =>
+    void (
+      document.fullscreenElement ? document.exitFullscreen() : shell.current?.requestFullscreen()
+    )?.catch(() => {});
   const fitScale = mediaSize.width
     ? Math.max(
         0.01,
@@ -192,8 +234,15 @@ function DocumentPreview({
   }, [page, fit]);
   return (
     <section
-      className="pdf-shell"
+      ref={shell}
+      className={`pdf-shell${video ? " video-shell" : ""}${video && idle ? " controls-idle" : ""}`}
       aria-label={video ? "Video viewer" : image ? "Image viewer" : "PDF viewer"}
+      tabIndex={video ? 0 : undefined}
+      onKeyDown={
+        video ? (event) => handleMediaKey(event, player.current, toggleFullscreen) : undefined
+      }
+      onPointerMove={video ? wake : undefined}
+      onFocus={video ? wake : undefined}
     >
       <div
         ref={view}
@@ -211,6 +260,7 @@ function DocumentPreview({
         }}
         className={`${video ? "video-view" : image ? "image-view" : "pdf-view"}${media && (mediaSize.width * mediaScale > size.width - 64 || mediaSize.height * mediaScale > size.height - 64) ? " pannable" : ""}${dragging ? " panning" : ""}`}
         onPointerDown={(event) => {
+          suppressClick.current = false;
           if (
             !media ||
             event.button !== 0 ||
@@ -221,12 +271,6 @@ function DocumentPreview({
           if (
             element.scrollWidth <= element.clientWidth &&
             element.scrollHeight <= element.clientHeight
-          )
-            return;
-          // Native video controls live in a closed shadow tree; reserve their bottom strip.
-          if (
-            event.target instanceof HTMLVideoElement &&
-            event.clientY > event.target.getBoundingClientRect().bottom - 64
           )
             return;
           suppressClick.current = false;
@@ -258,9 +302,9 @@ function DocumentPreview({
           setDragging(false);
         }}
         onPointerCancel={() => {
+          // A cancelled drag must not turn into a click (which would toggle video playback).
           pan.current = null;
           setDragging(false);
-          suppressClick.current = false;
         }}
         onLostPointerCapture={() => {
           pan.current = null;
@@ -278,11 +322,7 @@ function DocumentPreview({
             !(event.target instanceof HTMLImageElement || event.target instanceof HTMLVideoElement)
           )
             return;
-          if (
-            event.target instanceof HTMLVideoElement &&
-            event.clientY > event.target.getBoundingClientRect().bottom - 64
-          )
-            return;
+          clearTimeout(clickTimer.current);
           event.preventDefault();
           event.stopPropagation();
           setFit(true);
@@ -292,8 +332,15 @@ function DocumentPreview({
         <div className="preview-stage">
           {video ? (
             <video
-              controls
+              ref={player}
               src={url}
+              preload="metadata"
+              onClick={(event) => {
+                if (event.detail > 1) return;
+                const element = event.currentTarget;
+                // Delay so a double-click (fit) does not also toggle playback.
+                clickTimer.current = setTimeout(() => togglePlay(element), 220);
+              }}
               aria-label={video}
               onError={onMediaError}
               onLoadedMetadata={(event) => {
@@ -337,74 +384,129 @@ function DocumentPreview({
           {openError}
         </p>
       )}
-      <div className="pdf-controls">
-        {!media && (
-          <>
-            <button
-              aria-label="Previous page"
-              disabled={page <= 1}
-              onClick={() => setPage(page - 1)}
-            >
-              ‹
-            </button>
-            <span>
-              {page} / {pdf?.numPages || "…"}
+      {video && (
+        <>
+          {!playback.playing && !playback.waiting && (
+            // Visual cue only: clicks and wheel zoom pass through to the video underneath.
+            <span className="video-big-play" aria-hidden="true">
+              <Play fill="currentColor" />
             </span>
+          )}
+          {playback.waiting && (
+            <span className="video-spinner" role="status" aria-label="Loading" />
+          )}
+          <PlayerControls media={player} className="video">
             <button
-              aria-label="Next page"
-              disabled={!pdf || page >= pdf.numPages}
-              onClick={() => setPage(page + 1)}
+              aria-label="Zoom out"
+              onClick={() => {
+                setFit(false);
+                setScale(Math.max(media ? 0.01 : 0.1, zoom - 0.1));
+              }}
             >
-              ›
+              <Minus />
             </button>
-            <span className="divider" />
-          </>
-        )}
-        <button
-          aria-label="Zoom out"
-          onClick={() => {
-            setFit(false);
-            setScale(Math.max(media ? 0.01 : 0.1, zoom - 0.1));
-          }}
-        >
-          <Minus />
-        </button>
-        <span>{Math.round(zoom * 100)}%</span>
-        <button
-          aria-label="Zoom in"
-          onClick={() => {
-            setFit(false);
-            setScale(Math.min(media ? Math.max(3, fitScale) : 3, zoom + 0.1));
-          }}
-        >
-          <Plus />
-        </button>
-        <span className="divider" />
-        <Tooltip text="Fit to window">
-          <button
-            aria-label="Fit to window"
-            aria-pressed={fit}
-            disabled={media ? !mediaSize.width : !pdf}
-            onClick={() => setFit(true)}
-          >
-            <Scan />
-          </button>
-        </Tooltip>
-        {!video && (
-          <Tooltip text={standalone ? "Close viewer (Esc)" : "Open in separate window"}>
+            <span>{Math.round(zoom * 100)}%</span>
             <button
-              aria-label={standalone ? "Close viewer" : "Full window"}
-              onClick={() =>
-                void (standalone ? window.folio.closePreview() : onExpand?.())?.catch((e) =>
-                  setOpenError(String(e)),
-                )
-              }
+              aria-label="Zoom in"
+              onClick={() => {
+                setFit(false);
+                setScale(Math.min(media ? Math.max(3, fitScale) : 3, zoom + 0.1));
+              }}
             >
-              {standalone ? <Minimize /> : <Maximize />}
+              <Plus />
+            </button>
+
+            <Tooltip text="Fit to window">
+              <button
+                aria-label="Fit to window"
+                aria-pressed={fit}
+                disabled={media ? !mediaSize.width : !pdf}
+                onClick={() => setFit(true)}
+              >
+                <Scan />
+              </button>
+            </Tooltip>
+            <Tooltip text={fullscreen ? "Exit fullscreen (F)" : "Fullscreen (F)"}>
+              <button
+                aria-label={fullscreen ? "Exit fullscreen" : "Fullscreen"}
+                onClick={toggleFullscreen}
+              >
+                {fullscreen ? <Minimize2 /> : <Maximize2 />}
+              </button>
+            </Tooltip>
+          </PlayerControls>
+        </>
+      )}
+      {!video && (
+        <div className="pdf-controls">
+          {!media && (
+            <>
+              <button
+                aria-label="Previous page"
+                disabled={page <= 1}
+                onClick={() => setPage(page - 1)}
+              >
+                ‹
+              </button>
+              <span>
+                {page} / {pdf?.numPages || "…"}
+              </span>
+              <button
+                aria-label="Next page"
+                disabled={!pdf || page >= pdf.numPages}
+                onClick={() => setPage(page + 1)}
+              >
+                ›
+              </button>
+              <span className="divider" />
+            </>
+          )}
+          <button
+            aria-label="Zoom out"
+            onClick={() => {
+              setFit(false);
+              setScale(Math.max(media ? 0.01 : 0.1, zoom - 0.1));
+            }}
+          >
+            <Minus />
+          </button>
+          <span>{Math.round(zoom * 100)}%</span>
+          <button
+            aria-label="Zoom in"
+            onClick={() => {
+              setFit(false);
+              setScale(Math.min(media ? Math.max(3, fitScale) : 3, zoom + 0.1));
+            }}
+          >
+            <Plus />
+          </button>
+          <span className="divider" />
+          <Tooltip text="Fit to window">
+            <button
+              aria-label="Fit to window"
+              aria-pressed={fit}
+              disabled={media ? !mediaSize.width : !pdf}
+              onClick={() => setFit(true)}
+            >
+              <Scan />
             </button>
           </Tooltip>
-        )}
-      </div>
+          {!video && (
+            <Tooltip text={standalone ? "Close viewer (Esc)" : "Open in separate window"}>
+              <button
+                aria-label={standalone ? "Close viewer" : "Full window"}
+                onClick={() =>
+                  void (standalone ? window.folio.closePreview() : onExpand?.())?.catch((e) =>
+                    setOpenError(String(e)),
+                  )
+                }
+              >
+                {standalone ? <Minimize /> : <Maximize />}
+              </button>
+            </Tooltip>
+          )}
+        </div>
+      )}
     </section>
   );
 }
@@ -526,17 +628,16 @@ export function Viewer({
             }}
           />
         ) : entry.kind === "audio" ? (
-          <div className="empty">
-            <h2>{entry.name}</h2>
-            <audio
-              controls
-              src={url}
+          <div className="empty audio-stage">
+            <AudioPlayer
+              key={url}
+              url={url}
+              name={entry.name}
               onError={() => {
                 setUrl("");
                 setAssetError("This media codec is not supported. Open it externally.");
               }}
             />
-            <p className="muted">Playback depends on installed codec support.</p>
           </div>
         ) : entry.kind === "video" ? (
           <DocumentPreview

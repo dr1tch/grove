@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, useMemo } from "react";
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
+import { wikiToMarkdown } from "../shared/links";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
@@ -104,7 +105,8 @@ function Diagram({ source, dark }: { source: string; dark: boolean }) {
           diagramPadding: 28,
         },
         themeCSS:
-          ".node rect {rx: 10px; ry: 10px;} .edgeLabel {font-size:12px;} .flowchart-link {stroke-width:1.5px;}",
+          // Mermaid adds light grey drop-shadows to shapes, which look like a shine on dark themes.
+          "* {filter: none !important;} .node rect {rx: 10px; ry: 10px;} .edgeLabel {font-size:12px;} .flowchart-link {stroke-width:1.5px;}",
       });
       try {
         const { svg } = await m.render(`folio-mermaid-${++diagramId}`, source);
@@ -283,6 +285,12 @@ export function Markdown({
   vaultRoot?: string;
 }) {
   const scroll = useRef<HTMLDivElement>(null);
+  // Parents pass new callback objects on every render (for example while saving scroll position).
+  // Stable wrappers keep the rendered document cached, so diagrams and code blocks are not remounted.
+  const callbacks = useRef({ open, onChange });
+  callbacks.current = { open, onChange };
+  const openPath = useCallback((path: string) => callbacks.current.open(path), []);
+  const change = useCallback((next: string) => callbacks.current.onChange(next), []);
   useEffect(() => {
     const closeOutline = (event: PointerEvent) => {
       const outline = scroll.current?.querySelector(".document-outline");
@@ -320,16 +328,7 @@ export function Markdown({
     }
     return normalized.join("/");
   };
-  const transformed = value
-    .replace(/!\[\[([^\]]+)\]\]/g, (_m, p: string) =>
-      /\.excalidraw(?:\.md)?$/i.test(p)
-        ? `[✎ Open drawing: ${p}](folio-drawing:${p})`
-        : `![${p}](${p})`,
-    )
-    .replace(
-      /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,
-      (_m, p: string, alias: string) => `[${alias || p}](folio-note:${p})`,
-    );
+  const transformed = wikiToMarkdown(value);
   useEffect(() => {
     const el = scroll.current;
     if (!el) return;
@@ -387,12 +386,12 @@ export function Markdown({
           h3: ({ children }) => h(3, children),
           a: ({ href, children }) =>
             href?.startsWith("folio-drawing:") ? (
-              <DrawingEmbed path={resolve(href.slice(14))} dark={dark} open={open} />
+              <DrawingEmbed path={resolve(href.slice(14))} dark={dark} open={openPath} />
             ) : href &&
               vaultRoot &&
               !/^(?:[a-z]+:|\/)/i.test(href) &&
               ["pdf", "video", "audio"].includes(kindOf(href)) ? (
-              <AttachmentEmbed path={resolve(href)} root={vaultRoot} dark={dark} open={open} />
+              <AttachmentEmbed path={resolve(href)} root={vaultRoot} dark={dark} open={openPath} />
             ) : (
               <a
                 href={href}
@@ -400,8 +399,8 @@ export function Markdown({
                   e.preventDefault();
                   if (href?.startsWith("folio-")) {
                     const path = href.replace(/^folio-(note|drawing):/, "");
-                    open(resolve(/\.[a-z]+$/i.test(path) ? path : `${path}.md`));
-                  } else if (href && !/^[a-z]+:/i.test(href)) open(resolve(href));
+                    openPath(resolve(/\.[a-z]+$/i.test(path) ? path : `${path}.md`));
+                  } else if (href && !/^[a-z]+:/i.test(href)) openPath(resolve(href));
                 }}
               >
                 {children}
@@ -435,7 +434,7 @@ export function Markdown({
                     /\[([ xX])\]/,
                     event.target.checked ? "[x]" : "[ ]",
                   );
-                  onChange(lines.join("\n"));
+                  change(lines.join("\n"));
                 }
               }}
             >
@@ -455,7 +454,7 @@ export function Markdown({
         {transformed}
       </ReactMarkdown>
     ),
-    [doc, value, transformed, dark, onChange, open],
+    [doc.path, doc.modified, value, transformed, dark, vaultRoot, openPath, change],
   );
   return (
     <div className="preview" ref={scroll}>

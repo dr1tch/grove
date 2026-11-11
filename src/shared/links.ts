@@ -160,3 +160,17 @@ export function renameReferences(
   }
   return text;
 }
+/** Converts Obsidian wikilinks to Markdown the preview renders. Targets go in <…> so names with spaces still parse. */
+export function wikiToMarkdown(value: string): string {
+  const target = (path: string) => `<${path.replace(/[<>\n]/g, "")}>`;
+  return value
+    .replace(/!\[\[([^\]]+)\]\]/g, (_m, p: string) =>
+      /\.excalidraw(?:\.md)?$/i.test(p)
+        ? `[✎ Open drawing: ${p}](${target(`folio-drawing:${p}`)})`
+        : `![${p}](${target(p)})`,
+    )
+    .replace(
+      /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,
+      (_m, p: string, alias: string) => `[${alias || p}](${target(`folio-note:${p}`)})`,
+    );
+}

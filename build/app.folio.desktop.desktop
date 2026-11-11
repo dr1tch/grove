@@ -5,5 +5,5 @@ Exec=folio %F
 Icon=app.folio.desktop
 Type=Application
 Categories=Office;TextEditor;
-MimeType=text/markdown;application/x-excalidraw;
+MimeType=text/plain;text/markdown;text/x-markdown;application/x-excalidraw;
 Terminal=false

@@ -4,7 +4,17 @@ All notable changes to Grove. Versions match the GitHub release tags. The apt pa
 
 ## Unreleased
 
+### Changed
+
+- New video player modeled on player-glow-up: dark glass control bar with a seek bar (hover time, buffered range, thumb), 10-second skip, slide-out volume, time, zoom, fit and fullscreen. Controls hide after 3 seconds of playback. Click the video to play or pause. Keys: Space or K play, arrows ±5 s, J and L ±10 s, M mute, F fullscreen.
+- New audio player card in the same style, with a large play button, seek bar, volume and animated level bars. Audio embedded in notes uses a compact frame.
+
 ### Fixed
+
+- A cancelled drag on a video no longer toggles playback.
+- Mermaid diagrams no longer show a light drop-shadow (a shiny edge in dark mode) under boxes.
+- Wikilinks and embeds to files with spaces in their names (`[[My Note]]`, `![[My Drawing.excalidraw]]`) render as links and drawings instead of raw text.
+- Scrolling a note no longer re-renders its diagrams, code blocks and embeds, which caused flicker and flashing scrollbars. `scripts/scroll-qa.mjs` guards this.
 
 - Code previews keep lines aligned when line numbers change width (for example from 9 to 10).
 

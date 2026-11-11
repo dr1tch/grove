@@ -30,6 +30,15 @@ await promisify(execFile)("ffmpeg", [
   join(vault, "Clip.webm"),
 ]);
 let app;
+await promisify(execFile)("ffmpeg", [
+  "-loglevel",
+  "error",
+  "-f",
+  "lavfi",
+  "-i",
+  "sine=frequency=440:duration=3",
+  join(vault, "Tone.mp3"),
+]);
 const originals = await Promise.all(
   ["Picture.svg", "Clip.webm"].map((name) => readFile(join(vault, name))),
 );
@@ -186,11 +195,51 @@ try {
     time,
     "Zoom keeps playback position",
   );
+  assert.equal(await page.locator("video").evaluate((video) => video.controls), false);
+  const center = await page.locator("video").boundingBox();
+  await page.mouse.click(center.x + center.width / 2, center.y + center.height / 2);
+  await page.waitForFunction(() => !document.querySelector("video").paused);
+  await page.locator(".video-big-play").waitFor({ state: "detached" });
+  await page.getByRole("button", { name: "Pause (K)" }).click();
+  await page.waitForFunction(() => document.querySelector("video").paused);
+  const track = await page.getByRole("slider", { name: "Seek" }).boundingBox();
+  await page.mouse.click(track.x + track.width * 0.75, track.y + track.height / 2);
+  const duration = await page.locator("video").evaluate((video) => video.duration);
+  const seeked = await page.locator("video").evaluate((video) => video.currentTime);
+  assert.ok(Math.abs(seeked - duration * 0.75) < duration * 0.05, "Seek bar click jumps to 75%");
+  assert.equal(
+    await page.locator("video").evaluate((video) => video.paused),
+    true,
+    "Seeking keeps the paused state",
+  );
+  await page.locator(".video-shell").focus();
+  await page.keyboard.press("k");
+  await page.waitForFunction(() => !document.querySelector("video").paused);
+  await page.keyboard.press("k");
+  await page.waitForFunction(() => document.querySelector("video").paused);
   const videoBox = await page.locator("video").boundingBox();
-  await page.mouse.move(videoBox.x + 24, videoBox.y + videoBox.height - 48);
-  await page.mouse.click(videoBox.x + 24, videoBox.y + videoBox.height - 48);
+  await page.mouse.click(videoBox.x + videoBox.width / 2, videoBox.y + 20);
   await page.waitForFunction(() => !document.querySelector("video").paused);
   await page.locator("video").evaluate((video) => video.pause());
+  await page.locator('.file-tree .file-row[data-path="Tone.mp3"]').click();
+  const audio = page.locator(".audio-player audio");
+  await audio.waitFor({ state: "attached" });
+  assert.equal(await audio.evaluate((el) => el.controls), false, "Audio uses the custom player");
+  await page.waitForFunction(() => document.querySelector(".audio-player audio").readyState >= 1);
+  await page.locator(".audio-big-play").click();
+  await page.waitForFunction(() => !document.querySelector(".audio-player audio").paused);
+  assert.ok(await page.locator(".audio-player.playing").count(), "Playing state animates the bars");
+  await page.locator(".audio-big-play").click();
+  await page.waitForFunction(() => document.querySelector(".audio-player audio").paused);
+  const audioTrack = await page
+    .locator(".audio-player")
+    .getByRole("slider", { name: "Seek" })
+    .boundingBox();
+  await page.mouse.click(audioTrack.x + audioTrack.width / 2, audioTrack.y + audioTrack.height / 2);
+  const half = await audio.evaluate((el) => el.currentTime / el.duration);
+  assert.ok(Math.abs(half - 0.5) < 0.08, "Audio seek bar jumps to the middle");
+  await page.locator(".audio-player").getByRole("button", { name: "Mute (M)" }).click();
+  assert.equal(await audio.evaluate((el) => el.muted), true, "Mute button mutes audio");
   assert.deepEqual(errors, []);
   for (const [index, name] of ["Picture.svg", "Clip.webm"].entries())
     assert.deepEqual(
@@ -199,7 +248,7 @@ try {
       "Media originals unchanged",
     );
   console.log(
-    "PASS: image/video wheel zoom, two-axis pan, capture outside frame, cancellation, double-click fit, separate image window, native video controls, paused state and original bytes preserved. Fixture:",
+    "PASS: image/video wheel zoom, two-axis pan, capture outside frame, cancellation, double-click fit, separate image window, custom video player (play, pause, seek, K key, click to play), custom audio player (play, seek, mute), paused state and original bytes preserved. Fixture:",
     temp,
   );
 } finally {
