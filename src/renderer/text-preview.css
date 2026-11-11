@@ -50,7 +50,9 @@
 }
 .text-preview-number {
   flex: none;
-  min-width: 5ch;
+  /* every row gets the width of the longest line number, so code stays aligned */
+  box-sizing: content-box;
+  width: calc(max(var(--digits, 3), 3) * 1ch);
   padding: 0 16px;
   margin-right: 16px;
   border-right: 1px solid var(--line);

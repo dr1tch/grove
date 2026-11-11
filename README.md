@@ -1,8 +1,15 @@
-# Grove
+<p align="center"><img src="build/icon.png" alt="Grove logo" width="128"></p>
 
-A Linux desktop app for your notes, drawings and files. Grove opens a plain folder (a vault) and lets you read, write and preview Markdown, Excalidraw drawings, PDFs, code, Office documents and media in one place. Claude and Codex can read your notes and propose changes that you accept or reject.
+<h1 align="center">Grove</h1>
 
-Grove is an early build. Back up important folders before using it. See [CHANGELOG.md](CHANGELOG.md) for what changed in each version.
+A desktop app for your notes, drawings and files. Grove opens a plain folder (a vault) and lets you read, write and preview Markdown, Excalidraw drawings, PDFs, code, Office documents and media in one place. Claude and Codex can read your notes and propose changes that you accept or reject.
+
+Grove runs on Linux today. Windows is next, and a phone and browser version is on the [roadmap](#roadmap). Grove is an early build. Back up important folders before using it. See [CHANGELOG.md](CHANGELOG.md) for what changed in each version.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshot-dark.png">
+  <img src="docs/screenshot-light.png" alt="Grove with a Markdown note (flowchart, table, tasks) beside a TypeScript file in two panes">
+</picture>
 
 ## Install
 
@@ -17,7 +24,7 @@ echo "deb [signed-by=/etc/apt/keyrings/grove.asc] https://dr1tch.github.io/grove
 sudo apt update && sudo apt install folio
 ```
 
-The package is named `folio` and installs the Grove app. Installers (.deb and AppImage) are also attached to each [GitHub release](https://github.com/dr1tch/grove/releases). Linux only for now.
+The package is named `folio` and installs the Grove app. Installers (.deb and AppImage) are also attached to each [GitHub release](https://github.com/dr1tch/grove/releases). Windows installers will be added to the same releases once the Windows port lands.
 
 ## Features
 
@@ -67,7 +74,7 @@ vp run package
 
 Install the local package with `sudo apt install ./release/folio_<version>_amd64.deb`. Launch Grove from the app grid; Ubuntu's AppArmor sandbox needs the installed package, so do not run an unpacked build with `--no-sandbox`.
 
-UI checks run the real app headless, for example `xvfb-run -a node scripts/smoke.mjs` or `xvfb-run -a node scripts/visual-qa.mjs`. Some QA scripts expect sample PDFs at local paths; change those paths to your own files.
+UI checks run the real app headless, for example `xvfb-run -a node scripts/smoke.mjs` or `xvfb-run -a node scripts/visual-qa.mjs`. `scripts/readme-screenshot.mjs` regenerates the README screenshots from a demo vault. Some QA scripts expect sample PDFs at local paths; change those paths to your own files.
 
 ## Releases
 
@@ -75,7 +82,7 @@ Push a tag like `v0.4.2`. CI checks and tests the code, builds the .deb and AppI
 
 ## Known limits
 
-- Linux only. The file layer uses Linux kernel calls; Windows and macOS need a port.
+- Linux only for now. The file layer uses Linux kernel calls, so Windows needs a port of that layer (in progress next).
 - PDF search reads existing text only, no OCR. Search speed on PDF-heavy vaults is not measured.
 - The assistant cannot yet search the whole vault on its own, see drawings as images, read PDF text or undo accepted proposals.
 - Trash and export recovery copies are not cleaned up automatically. Version history is unbounded.
@@ -83,7 +90,7 @@ Push a tag like `v0.4.2`. CI checks and tests the code, builds the .deb and AppI
 
 ## Roadmap
 
-Git sync across desktops, a phone and browser version, and plugins (including a partial Obsidian plugin layer). See [docs/specs/grove-sync-plugins.md](docs/specs/grove-sync-plugins.md).
+Windows support, Git sync across desktops, a phone and browser version, and plugins (including a partial Obsidian plugin layer). See [docs/specs/grove-sync-plugins.md](docs/specs/grove-sync-plugins.md).
 
 ## License
 

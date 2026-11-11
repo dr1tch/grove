@@ -147,7 +147,10 @@ export function TextPreview({ path, value, dark }: { path: string; value: string
             <p className="text-preview-empty">Empty table</p>
           )
         ) : (
-          <pre className="text-preview-code">
+          <pre
+            className="text-preview-code"
+            style={{ "--digits": String(lines.length).length } as React.CSSProperties}
+          >
             <code>
               {lines.map((line, i) => (
                 <span className="text-preview-line" key={i}>
