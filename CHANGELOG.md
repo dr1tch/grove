@@ -1,0 +1,112 @@
+# Changelog
+
+All notable changes to Grove. Versions match the GitHub release tags. The apt package is named `folio`.
+
+## 0.4.1 (2026-11-11)
+
+### Fixed
+
+- Diagram toolbars wrap in narrow split panes instead of pushing Copy and Expand outside the card.
+- Pane tab strips shrink tabs with an ellipsis instead of showing a horizontal scrollbar.
+
+### Added
+
+- Public repository with release CI and a signed APT repository at `https://dr1tch.github.io/grove`.
+- `scripts/visual-qa.mjs` screenshots the installed app in light and dark themes, two panes, tooltips, overlays and keyboard focus.
+
+## 0.4.0 (2026-11-11)
+
+### Added
+
+- Two independent document panes with one shared draft and save owner. Open beside, resize the divider and restore each pane's reading position.
+- Named workspace presets per vault that save layout, tabs and folder expansion without copying note content.
+- Drop files or paste screenshots into Markdown. External files are copied into the note's `attachments` folder without overwriting; vault files are linked. Images, PDF, video and audio preview inline. Undo removes links and keeps the files.
+- Ctrl+K recent and fuzzy file switcher. Shift+Enter opens beside.
+- Ctrl+Shift+F searches notes, code and PDF text; Ctrl+F searches the active file. Results highlight matches and reject stale offsets. A 1,000-file text vault scans in 75 ms; PDF-heavy vaults are not measured.
+- Backlinks and unresolved links panel. Renames preview link updates, block affected unsaved notes and keep an interrupted-operation journal with Resume.
+- Comparison dialog for external changes and saved versions with Keep mine, Use disk, Keep both and Restore version. Unavailable files keep their working copy.
+- HTML and XHTML source with a sandboxed preview. Local CSS and images load; scripts, forms and network are disabled.
+- Export a note as self-contained HTML or PDF with images, diagrams and bundled fonts, with a 100 MiB embedded-data limit. Replacing an export keeps a `.before-export` recovery copy.
+- Drag zoomed images and videos to pan; double-click to fit again.
+
+## 0.3.10 (2026-11-11)
+
+### Added
+
+- Scroll over images and videos to zoom, in the main viewer and separate image windows. Fit resets zoom. Video playback position is kept. PDF scrolling is unchanged.
+
+## 0.3.9 (2026-11-11)
+
+### Changed
+
+- Tooltips prefer above or below placement, move to the side near edges and stay inside the window, including on PDF and image controls.
+
+## 0.3.8 (2026-11-11)
+
+### Fixed
+
+- Files with a PDF header open as PDF even when named `.xhtml`, `.bin` or `.docx`. Genuine XHTML files still open as source.
+
+## 0.3.6 and 0.3.7 (2026-11-11)
+
+### Added
+
+- PDF and image previews open fitted and centered, refit on window resize and have zoom controls.
+- Separate fullscreen viewer windows for PDF and images, closed with Escape or Close.
+- Tooltips render outside clipped panels.
+
+## 0.3.5 (2026-11-11)
+
+### Added
+
+- PDF Fit to window and Full window controls.
+
+## 0.3.4 (2026-11-11)
+
+### Fixed
+
+- PDFs render through a same-origin transport, so local PDFs, including names with spaces and accents, open reliably.
+
+## 0.3.3 (2026-11-11)
+
+### Changed
+
+- Code blocks, charts and diagrams fill the document width in full, wide and split preview modes.
+
+## 0.3.2 (2026-11-11)
+
+### Changed
+
+- The sidebar scrolls vertically only. Long names truncate, with full names and paths in real hover and focus tooltips.
+
+## 0.3.0 and 0.3.1 (2026-11-11)
+
+### Added
+
+- The app is now Grove, with a launcher icon sized like Claude Desktop's. Package identity, vault paths and the `~/.config/folio` profile stay compatible.
+- Coloured folder icons by category and file-type icons.
+- Settings as a centered modal with Appearance, Editor and About.
+- Inline new file and folder naming in the tree, open in new tab, middle-click and Ctrl-click to keep previews, icon-only pinned tabs and a plus button beside the tabs.
+- Copy to clipboard with visible feedback, outside-click dismissal for popups and top-aligned, uncropped diagram modals.
+
+## 0.2.0 (2026-11-11)
+
+### Added
+
+- Reading widths of 960, 1200 and full width, an installed-font picker and F11 fullscreen.
+- Draggable header space, resizable sidebar and scrollable outline popovers.
+- Tab right-click menu, folder icons, nested folders, create, rename and recoverable delete for files and folders.
+- Syntax-coloured, formatted previews for Vue, JavaScript, TypeScript and other source files. CSV and TSV render as tables.
+- Read-only Word, Excel and PowerPoint previews through LibreOffice on a copy of the file.
+
+### Changed
+
+- Flowcharts use rounded nodes, calmer spacing, theme-aware colours, zoom and an expanded view.
+
+## 0.1.0 (2026-11-11)
+
+### Added
+
+- First desktop build: Markdown editing with autosave and GitHub-style preview, Excalidraw drawings, PDF and media previews, tabs, light and dark themes.
+- Safe file layer with atomic writes, version history, conflict handling and recoverable Trash.
+- Claude and Codex panel that proposes create, update and delete changes for you to accept.
