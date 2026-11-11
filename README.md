@@ -2,9 +2,24 @@
 
 A native Linux workspace for Markdown, drawings and local files, following the supplied [Folio specification](docs/specs/folio.md). This is an early development build, not a finished implementation of every acceptance check.
 
-## Try the desktop build
+## Install
 
-1. Install `release/folio_0.4.0_amd64.deb` with `sudo apt install ./release/folio_0.4.0_amd64.deb` from this directory.
+### Ubuntu / Debian (apt)
+
+Add the repository once, then install and update with apt:
+
+```bash
+sudo mkdir -p /etc/apt/keyrings
+curl -fsSL https://dr1tch.github.io/grove/grove.asc | sudo tee /etc/apt/keyrings/grove.asc > /dev/null
+echo "deb [signed-by=/etc/apt/keyrings/grove.asc] https://dr1tch.github.io/grove ./" | sudo tee /etc/apt/sources.list.d/grove.list
+sudo apt update && sudo apt install folio
+```
+
+The package is named `folio` and installs the Grove app. Installers (.deb and AppImage) are also attached to each [GitHub release](https://github.com/dr1tch/grove/releases). Linux only for now.
+
+## Try a local build
+
+1. Run `vp run package`, then install with `sudo apt install ./release/folio_<version>_amd64.deb` from this directory.
 2. Launch Grove from the app grid. Ubuntu requires the installed package's AppArmor/sandbox integration; an unpacked development binary cannot launch securely on this machine without it. Do not work around that with `--no-sandbox`.
 3. Open a test folder. Markdown, JSON drawings and compressed Obsidian Excalidraw drawings stay in their original formats.
 

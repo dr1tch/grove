@@ -1,0 +1,52 @@
+name: APT repository
+
+# Publishes the latest release's .deb as a signed APT repository on GitHub Pages,
+# so Debian/Ubuntu users can `sudo apt install folio` and get updates with `apt upgrade`.
+# Needs the APT_GPG_KEY secret (an armored private signing key) and Pages set to "GitHub Actions".
+on:
+  # runs on the default branch, which the github-pages environment allows (tag refs are not)
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Download the latest release's .deb
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download --repo "$GITHUB_REPOSITORY" --pattern '*.deb' --dir site/pool
+      - name: Build and sign the repository
+        working-directory: site
+        env:
+          APT_GPG_KEY: ${{ secrets.APT_GPG_KEY }}
+        run: |
+          apt-ftparchive packages pool > Packages
+          gzip -k9 Packages
+          apt-ftparchive -o APT::FTPArchive::Release::Origin=grove -o APT::FTPArchive::Release::Label=grove release . > Release
+          gpg --batch --import <<< "$APT_GPG_KEY"
+          gpg --batch --yes --armor --detach-sign -o Release.gpg Release
+          gpg --batch --yes --clearsign -o InRelease Release
+          gpg --armor --export > grove.asc
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v4

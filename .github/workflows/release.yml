@@ -1,0 +1,64 @@
+name: Release
+
+# Push a tag like v0.4.1 to build the Linux installers and publish them as a GitHub release.
+# Linux only: the vault helper (resources/vault_io.py) uses Linux kernel calls (openat2, renameat2).
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Vite+
+        run: curl -fsSL https://vite.plus | VP_NODE_MANAGER=no bash
+      - name: Install dependencies
+        run: |
+          . "$HOME/.config/vite-plus/env"
+          vp install --frozen-lockfile
+          node node_modules/electron/install.js
+      - name: Check and test
+        run: |
+          . "$HOME/.config/vite-plus/env"
+          vp check
+          vp test --run
+          python3 scripts/vault-races.py
+      - name: Use the tag as the app version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: npm version --no-git-tag-version --allow-same-version "${GITHUB_REF_NAME#v}"
+      - name: Build installers
+        run: |
+          . "$HOME/.config/vite-plus/env"
+          vp run build
+          npx electron-builder --linux deb AppImage --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installers-linux
+          path: |
+            release/*.AppImage
+            release/*.deb
+          if-no-files-found: error
+
+  release:
+    needs: build
+    permissions:
+      contents: write
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release
+          merge-multiple: true
+      - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        with:
+          files: release/*
+          generate_release_notes: true
