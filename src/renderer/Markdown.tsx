@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
-import { wikiToMarkdown } from "../shared/links";
+import { wikiToMarkdown, resolveLink } from "../shared/links";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
@@ -322,23 +322,7 @@ export function Markdown({
     id: `heading-${i}`,
   }));
   let heading = 0;
-  const folder = doc.path.split("/").slice(0, -1).join("/");
-  const resolve = (p: string) => {
-    try {
-      p = decodeURIComponent(p.split("#")[0]);
-    } catch {
-      return "";
-    }
-    const parts = (folder ? `${folder}/${p}` : p).split("/");
-    const normalized: string[] = [];
-    for (const part of parts) {
-      if (part === "..") {
-        if (!normalized.length) return "";
-        normalized.pop();
-      } else if (part !== ".") normalized.push(part);
-    }
-    return normalized.join("/");
-  };
+  const resolve = (p: string) => resolveLink(doc.path, p, [])?.path || "";
   const transformed = wikiToMarkdown(value);
   useEffect(() => {
     const el = scroll.current;
@@ -417,7 +401,17 @@ export function Markdown({
                 {children}
               </a>
             ),
-          img: ({ src, alt }) => <Asset path={resolve(String(src || ""))} alt={alt} />,
+          // `![[file.pdf]]` (Obsidian style) arrives as an image; embed media like a link does.
+          img: ({ src, alt }) => {
+            const path = resolve(String(src || ""));
+            if (vaultRoot && kindOf(path) === "drawing")
+              return <DrawingEmbed path={path} dark={dark} open={openPath} />;
+            return vaultRoot && ["pdf", "video", "audio"].includes(kindOf(path)) ? (
+              <AttachmentEmbed path={path} root={vaultRoot} dark={dark} open={openPath} />
+            ) : (
+              <Asset path={path} alt={alt} />
+            );
+          },
           pre: ({ children }) => <>{children}</>,
           code: ({ className, children, ...props }) => {
             const text = (typeof children === "string" ? children : "").replace(/\n$/, "");

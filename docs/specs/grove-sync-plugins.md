@@ -2,6 +2,8 @@
 
 Status: proposed, 2026-11-11. Builds on Grove 0.4.1.
 
+Update 2026-11-12: [Grove clients](grove-clients.md) supersedes the PWA-only phone design below. The phone app uses Expo/React Native, the browser reuses the React desktop renderer, and a separate landing page lives in the same pnpm workspace. The sync safety and plugin requirements here still apply.
+
 ## Decisions (from the user)
 
 1. Sync between desktop PCs, phone (read and edit) and any browser.

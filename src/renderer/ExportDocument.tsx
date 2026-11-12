@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ExportInfo } from "../shared/types";
 import { Markdown } from "./Markdown";
-(window as unknown as { EXCALIDRAW_ASSET_PATH: string }).EXCALIDRAW_ASSET_PATH =
-  "folio://app/excalidraw-assets/";
+import "./excalidraw-assets";
 export function ExportDocument() {
   const [info, setInfo] = useState<ExportInfo>(),
     [error, setError] = useState("");

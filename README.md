@@ -31,6 +31,7 @@ The package is named `folio` and installs the Grove app. Installers (.deb and Ap
 ### Writing and reading
 
 - Markdown editor with autosave, split editing and a GitHub-style preview: tables, tasks, wikilinks, images, Mermaid diagrams and Excalidraw embeds.
+- Formatting toolbar for headings, bold, italic, quotes, code, links, lists and tasks, with undo/redo and Ctrl+B/Ctrl+I shortcuts. Insert from vault reuses existing media, drawings and saved Mermaid source without copying files.
 - Real Excalidraw editor. Drawings stay in their original JSON or Obsidian Excalidraw format.
 - Code files (Vue, JavaScript, TypeScript and more) with syntax colours and formatted previews. CSV and TSV show as tables.
 - HTML and XHTML source beside a safe preview with scripts and network disabled.

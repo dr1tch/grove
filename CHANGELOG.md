@@ -2,6 +2,18 @@
 
 All notable changes to Grove. Versions match the GitHub release tags. The apt package is named `folio`.
 
+## 0.5.1 (2026-11-12)
+
+### Added
+
+- Markdown formatting toolbar in Edit and Split modes: headings, bold, italic, quotes, code, links, lists, tasks, undo and redo. Ctrl+B and Ctrl+I format the selection without changing the normal save and conflict handling.
+- Insert from vault reuses existing images, PDFs, audio, video, drawings, and saved Mermaid blocks. Files can be embedded or linked; Mermaid source is copied without changing its original note. Vault-root references also work in new unsaved drafts.
+
+### Fixed
+
+- PDFs embedded in notes fill the note width at page proportions (up to 85% of the window height) instead of a fixed 430px box.
+- `![[file.pdf]]`, `![[clip.mp4]]` and `![[song.mp3]]` embed the viewer or player instead of showing a broken image.
+
 ## 0.5.0 (2026-11-12)
 
 ### Added

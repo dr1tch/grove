@@ -596,6 +596,121 @@ kbd {
   min-height: 0;
   overflow: hidden;
 }
+.markdown-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+  min-height: 38px;
+  padding: 3px 10px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--line);
+  background: var(--win);
+  color: var(--muted);
+}
+.markdown-toolbar button,
+.markdown-toolbar select {
+  flex: none;
+  min-height: 28px;
+  padding: 4px 6px;
+  color: var(--muted);
+}
+.markdown-toolbar select {
+  width: 49px;
+  padding: 3px;
+  border: 0;
+  background: transparent;
+}
+.toolbar-divider {
+  flex: none;
+  width: 1px;
+  height: 18px;
+  margin: 0 5px;
+  background: var(--line2);
+}
+.vault-insert-dialog {
+  width: min(620px, calc(100vw - 40px));
+  margin: auto;
+  max-height: calc(100vh - 48px);
+  padding: 20px;
+  overflow: auto;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--line2);
+  border-radius: 12px;
+}
+.vault-insert-dialog::backdrop {
+  background: rgb(0 0 0 / 35%);
+}
+.vault-insert-dialog > header,
+.vault-insert-dialog > footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.vault-insert-dialog h2 {
+  font-size: 18px;
+  margin: 0 0 12px;
+}
+.vault-insert-dialog > input {
+  width: 100%;
+}
+.insert-filters {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+.insert-filters [aria-pressed="true"],
+.insert-results [aria-pressed="true"] {
+  color: var(--accent);
+  background: var(--accent-bg);
+}
+.insert-results {
+  max-height: 240px;
+  overflow: auto;
+  border-block: 1px solid var(--line);
+  margin-bottom: 12px;
+}
+.insert-results button {
+  display: flex;
+  justify-content: flex-start;
+  width: 100%;
+  min-height: 36px;
+  white-space: normal;
+  text-align: left;
+}
+.insert-results button > span {
+  overflow-wrap: anywhere;
+}
+.insert-results svg {
+  flex: none;
+}
+.insert-selection > strong {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.insert-selection label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+}
+.insert-selection select {
+  max-width: 75%;
+}
+.insert-selection pre {
+  max-height: 140px;
+  overflow: auto;
+  padding: 10px;
+  background: var(--code);
+  font: 12px/1.6 var(--mono);
+}
+.vault-insert-dialog > footer {
+  justify-content: flex-end;
+  margin-top: 16px;
+}
 .editor-footer {
   display: flex;
   align-items: center;
@@ -1137,6 +1252,13 @@ kbd {
 }
 .embed-video .attachment-view {
   height: calc(100cqw * 9 / 16 + 45px);
+}
+/* PDFs in notes use the note width at A4 proportions, capped so one page never exceeds the window. */
+.embed-pdf {
+  container-type: inline-size;
+}
+.embed-pdf .attachment-view {
+  height: min(calc(100cqw * 1.414 + 45px), 85vh);
 }
 .attachment-view .video-view {
   padding: 0;

@@ -143,6 +143,8 @@ export function DocumentPane({
             <div className={`writing ${view.mode}`} key={tab.path}>
               {view.mode !== "preview" && (
                 <Editor
+                  isMarkdown={entry.kind === "markdown"}
+                  vaultRoot={root}
                   attachmentTarget={
                     entry.kind === "markdown" && !tab.path.startsWith("draft://")
                       ? { path: tab.path, root }

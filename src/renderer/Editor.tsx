@@ -11,10 +11,22 @@ import {
 } from "@codemirror/view";
 import { languages } from "@codemirror/language-data";
 import { markdown } from "@codemirror/lang-markdown";
-import { history, historyKeymap, defaultKeymap, isolateHistory } from "@codemirror/commands";
+import {
+  history,
+  historyKeymap,
+  defaultKeymap,
+  isolateHistory,
+  undo,
+  redo,
+  undoDepth,
+  redoDepth,
+} from "@codemirror/commands";
 import { attachmentMarkdown } from "../shared/attachments";
 import type { AttachmentResult } from "../shared/types";
 import { textMatches } from "../shared/search";
+import { formatMarkdown, type MarkdownAction } from "../shared/markdown-format";
+import { MarkdownToolbar } from "./MarkdownToolbar";
+import { VaultInsertDialog } from "./VaultInsertDialog";
 const searchQuery = StateEffect.define<string>();
 const searchHighlights = StateField.define({
   create: () => ({ query: "", ranges: Decoration.none }),
@@ -51,6 +63,8 @@ export function Editor({
   pendingDrop,
   onDropHandled,
   notify,
+  isMarkdown = false,
+  vaultRoot,
 }: {
   cacheKey: string;
   value: string;
@@ -63,6 +77,8 @@ export function Editor({
   pendingDrop?: { stamp: number; anchor: number };
   onDropHandled?: () => void;
   notify?: (message: string) => void;
+  isMarkdown?: boolean;
+  vaultRoot?: string;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
@@ -70,6 +86,30 @@ export function Editor({
   callbacks.current = { onChange, onAsk, onPosition };
   const [line, setLine] = useLine();
   const anchors = useRef(new Map<string, number>());
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+  const [insertion, setInsertion] = useState<{ editor: EditorView; start: string; end: string }>();
+  const format = (action: MarkdownAction) => {
+    const editor = view.current;
+    if (!editor || !isMarkdown) return;
+    const { from, to } = editor.state.selection.main;
+    editor.dispatch({
+      ...formatMarkdown(editor.state.doc.toString(), from, to, action),
+      annotations: isolateHistory.of("full"),
+      userEvent: "input.format",
+    });
+    editor.focus();
+  };
+  const formatting = useRef(format);
+  formatting.current = format;
+  const closeInsert = () => {
+    if (insertion) {
+      anchors.current.delete(insertion.start);
+      anchors.current.delete(insertion.end);
+    }
+    setInsertion(undefined);
+    view.current?.focus();
+  };
   async function attach(load: () => Promise<AttachmentResult>, at?: number) {
     const editor = view.current,
       target = attachmentTarget;
@@ -115,7 +155,28 @@ export function Editor({
       highlightActiveLineGutter(),
       drawSelection(),
       history(),
-      keymap.of([...defaultKeymap, ...historyKeymap]),
+      keymap.of([
+        ...(isMarkdown
+          ? [
+              {
+                key: "Mod-b",
+                run: () => {
+                  formatting.current("bold");
+                  return true;
+                },
+              },
+              {
+                key: "Mod-i",
+                run: () => {
+                  formatting.current("italic");
+                  return true;
+                },
+              },
+            ]
+          : []),
+        ...defaultKeymap,
+        ...historyKeymap,
+      ]),
       EditorView.lineWrapping,
       searchHighlights,
       EditorView.domEventHandlers({
@@ -177,6 +238,8 @@ export function Editor({
         ]),
       ),
       EditorView.updateListener.of((update) => {
+        setCanUndo(undoDepth(update.state) > 0);
+        setCanRedo(redoDepth(update.state) > 0);
         for (const transaction of update.transactions)
           for (const [id, position] of anchors.current)
             anchors.current.set(id, transaction.changes.mapPos(position, 1));
@@ -225,6 +288,8 @@ export function Editor({
       editor.scrollDOM.scrollTop = previous.scroll;
     }
     view.current = editor;
+    setCanUndo(undoDepth(state) > 0);
+    setCanRedo(redoDepth(state) > 0);
     const scroll = () =>
       callbacks.current.onPosition?.({ editorScroll: editor.scrollDOM.scrollTop });
     editor.scrollDOM.addEventListener("scroll", scroll);
@@ -248,7 +313,7 @@ export function Editor({
       anchors.current.clear();
       editor.destroy();
     };
-  }, [fontSize, cacheKey]);
+  }, [fontSize, cacheKey, isMarkdown]);
   useEffect(() => {
     if (!pendingDrop || !attachmentTarget) return;
     view.current?.focus();
@@ -296,7 +361,68 @@ export function Editor({
   }, [position?.find?.id]);
   return (
     <div className="editor-wrap">
+      {isMarkdown && (
+        <MarkdownToolbar
+          format={format}
+          canUndo={canUndo}
+          canRedo={canRedo}
+          undo={() => {
+            if (view.current) {
+              undo(view.current);
+              view.current.focus();
+            }
+          }}
+          redo={() => {
+            if (view.current) {
+              redo(view.current);
+              view.current.focus();
+            }
+          }}
+          insert={
+            vaultRoot
+              ? () => {
+                  const editor = view.current;
+                  if (!editor) return;
+                  const start = crypto.randomUUID(),
+                    end = crypto.randomUUID();
+                  anchors.current.set(start, editor.state.selection.main.from);
+                  anchors.current.set(end, editor.state.selection.main.to);
+                  setInsertion({ editor, start, end });
+                }
+              : undefined
+          }
+        />
+      )}
       <div className="editor" ref={host} />
+      {insertion && vaultRoot && (
+        <VaultInsertDialog
+          root={vaultRoot}
+          close={closeInsert}
+          insert={(content) => {
+            const editor = view.current,
+              from = anchors.current.get(insertion.start),
+              to = anchors.current.get(insertion.end);
+            if (editor !== insertion.editor || from === undefined || to === undefined) {
+              notify?.("The editor changed. Reopen Insert from vault.");
+              closeInsert();
+              return;
+            }
+            const before = from > 0 && editor.state.sliceDoc(from - 1, from) !== "\n" ? "\n" : "";
+            const after =
+              to < editor.state.doc.length && editor.state.sliceDoc(to, to + 1) !== "\n"
+                ? "\n"
+                : "";
+            const insert = before + content + after;
+            editor.dispatch({
+              changes: { from, to, insert },
+              selection: { anchor: from + insert.length },
+              annotations: isolateHistory.of("full"),
+              userEvent: "input.insert",
+            });
+            closeInsert();
+          }}
+        />
+      )}
       <footer className="editor-footer">
         {attachmentTarget && (
           <button
