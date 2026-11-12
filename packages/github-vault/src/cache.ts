@@ -33,3 +33,13 @@ export class CacheConflict extends Error {
 export function pendingDocument(edit: PendingEdit): Document {
   return { path: edit.path, content: edit.content, hash: edit.revision, modified: 0 };
 }
+// Remembers which local revision an upload came from, so an editor still holding that
+// revision hash can keep saving instead of seeing its own upload as a conflict.
+export function ackedDocument(remote: RemoteUpdate, revision?: string): Document {
+  return revision && remote.rebase
+    ? ({ ...remote.document, uploadedFrom: revision } as Document)
+    : remote.document;
+}
+export function uploadedFrom(document?: Document): string | undefined {
+  return (document as (Document & { uploadedFrom?: string }) | undefined)?.uploadedFrom;
+}

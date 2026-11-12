@@ -2,7 +2,12 @@ import type { Document } from "@grove/core/types";
 import type { RepoRef, VaultEntry } from "@grove/github-vault/types";
 import { filePath, rootOf } from "@grove/github-vault/types";
 import type { CachedAsset, PendingEdit, RemoteUpdate, VaultCache } from "@grove/github-vault/cache";
-import { CacheConflict, pendingDocument } from "@grove/github-vault/cache";
+import {
+  ackedDocument,
+  CacheConflict,
+  pendingDocument,
+  uploadedFrom,
+} from "@grove/github-vault/cache";
 
 function result<T>(request: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -154,12 +159,14 @@ export class BrowserCache implements VaultCache {
       const previous: PendingEdit | undefined = await result(edits.get(path));
       const saved: Document | undefined = await result(tx.objectStore("documents").get(path));
       const current = previous ? pendingDocument(previous) : saved;
-      if (expectedHash !== undefined && expectedHash !== (current?.hash ?? ""))
+      const uploaded =
+        !previous && expectedHash !== undefined && uploadedFrom(saved) === expectedHash;
+      if (expectedHash !== undefined && !uploaded && expectedHash !== (current?.hash ?? ""))
         throw new CacheConflict(current ?? { path, hash: "", content: "", modified: 0 });
       const edit = {
         path,
         content,
-        baseSha: previous?.baseSha ?? baseSha,
+        baseSha: previous?.baseSha ?? (uploaded ? saved!.hash : baseSha),
         revision: `local:${crypto.randomUUID()}`,
       };
       await result(edits.put(edit, path));
@@ -177,7 +184,12 @@ export class BrowserCache implements VaultCache {
         remote &&
         (!saved || saved.hash === remote.baseSha || current?.baseSha === remote.baseSha)
       )
-        await result(documents.put(remote.document, path));
+        await result(
+          documents.put(
+            ackedDocument(remote, current?.revision === revision ? revision : undefined),
+            path,
+          ),
+        );
       if (!current) return false;
       if (current.revision === revision) {
         await result(edits.delete(path));

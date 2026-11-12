@@ -14,6 +14,7 @@ const copyStatus = (status: SyncStatus): SyncStatus => ({
 });
 
 export class VaultSession {
+  #disposed = false;
   #running?: Promise<SyncStatus>;
   #changes = new Set<(path: string) => void>();
   #sync = new Set<(status: SyncStatus) => void>();
@@ -160,7 +161,14 @@ export class VaultSession {
       "Could not reserve a unique conflict filename. Your edit remains queued.",
     );
   }
+  dispose(): void {
+    this.#disposed = true;
+    this.store.dispose();
+    this.#changes.clear();
+    this.#sync.clear();
+  }
   syncNow(): Promise<SyncStatus> {
+    if (this.#disposed) return Promise.reject(new Error("Sign in first"));
     if (this.#running) return this.#running;
     this.#running = this.#flush().finally(() => {
       this.#running = undefined;
@@ -172,6 +180,7 @@ export class VaultSession {
     this.#state({ state: "syncing", conflicts, skipped: [], lastSync: this.#status.lastSync });
     try {
       for (const edit of await this.cache.pending()) {
+        if (this.#disposed) break;
         let result: SaveResult;
         if (edit.baseSha) result = await this.store.write(edit.path, edit.content, edit.baseSha);
         else {
@@ -207,6 +216,7 @@ export class VaultSession {
         }
         this.#emit(this.#changes, edit.path);
       }
+      if (this.#disposed) return this.status();
       await this.cache.putTree(await this.store.list());
       const more = (await this.cache.pending()).length > 0;
       return this.#state({

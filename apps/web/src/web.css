@@ -1,0 +1,217 @@
+html[data-platform="web"] {
+  --mono: "JetBrains Mono", monospace;
+}
+[data-platform="web"] [data-desktop],
+[data-platform="web"] .window-controls,
+[data-platform="web"] .assistant-toggle {
+  display: none !important;
+}
+[data-platform="web"] .drag {
+  -webkit-app-region: no-drag;
+}
+[data-platform="web"] .vault-switch:disabled {
+  opacity: 1;
+  cursor: default;
+}
+.web-account-button {
+  align-self: center;
+  margin-right: 10px;
+  min-height: 32px;
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+}
+.web-sign-in {
+  height: 100dvh;
+  min-height: 0;
+  display: grid;
+  place-items: start center;
+  padding: 30px 20px;
+  background: var(--win);
+  overflow: auto;
+}
+.web-sign-in > section {
+  width: 100%;
+  max-width: 450px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 30px;
+  box-shadow: 0 8px 30px #2221;
+}
+.web-brand {
+  display: flex;
+  align-items: center;
+  font-size: 24px;
+  font-weight: 600;
+  gap: 3px;
+  margin-bottom: 18px;
+  color: var(--text);
+  text-decoration: none;
+}
+.web-sign-in h1 {
+  font:
+    400 32px/1.1 "Source Serif 4",
+    Georgia,
+    serif;
+  letter-spacing: -0.04em;
+  margin: 0 0 12px;
+}
+.web-sign-in p {
+  line-height: 1.6;
+}
+.web-sign-in form {
+  display: grid;
+  gap: 13px;
+  margin: 22px 0;
+}
+.web-sign-in label:not(.web-checkbox) {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.web-sign-in input:not([type="checkbox"]) {
+  width: 100%;
+  min-height: 44px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--line2);
+  border-radius: 7px;
+  padding: 10px;
+  font:
+    14px Geist,
+    sans-serif;
+}
+.web-sign-in button {
+  min-height: 44px;
+  justify-content: center;
+  border-radius: 7px;
+  font-weight: 600;
+}
+.web-sign-in .web-help {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 0;
+}
+.web-token-guide {
+  font-size: 12px;
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.web-checkbox {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-weight: 400;
+  min-height: 32px;
+}
+.web-checkbox input {
+  accent-color: var(--accent);
+}
+.web-error {
+  color: var(--danger);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.web-loading {
+  display: grid;
+  place-items: center;
+  min-height: 100dvh;
+  color: var(--muted);
+}
+.web-account {
+  max-width: 480px;
+}
+.web-account p {
+  margin: 16px 0;
+  line-height: 1.6;
+}
+.web-account footer {
+  display: flex;
+  justify-content: end;
+  gap: 12px;
+}
+.web-account button {
+  min-height: 40px;
+  padding: 8px 14px;
+}
+[data-platform="web"] :focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+@media (max-width: 750px) {
+  [data-platform="web"] .app.has-sidebar,
+  [data-platform="web"] .app.has-sidebar.has-assistant {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  [data-platform="web"] .sidebar {
+    position: fixed;
+    z-index: 30;
+    inset: 48px auto 0 0;
+    width: min(84vw, 320px);
+    box-shadow: 16px 0 40px #0003;
+  }
+  [data-platform="web"] .titlebar {
+    grid-column: 1;
+    overflow: hidden;
+  }
+  [data-platform="web"] .tabs {
+    min-width: 0;
+  }
+  [data-platform="web"] .title-actions {
+    gap: 2px;
+  }
+  [data-platform="web"] .title-actions .seg {
+    display: none;
+  }
+  [data-platform="web"] .title-actions button {
+    width: 34px;
+    min-width: 34px;
+  }
+  [data-platform="web"] .web-account-button {
+    font-size: 11px;
+    padding: 5px 6px;
+    margin-right: 4px;
+  }
+  [data-platform="web"] .sidebar-resizer {
+    display: none;
+  }
+  [data-platform="web"] .document-pane:not(.focused),
+  [data-platform="web"] .pane-divider {
+    display: none;
+  }
+  [data-platform="web"] .document-panes {
+    display: flex !important;
+  }
+  [data-platform="web"] .document-pane.focused {
+    width: 100%;
+    flex: 1;
+  }
+  [data-platform="web"] .writing.split {
+    grid-template-columns: 1fr;
+  }
+  [data-platform="web"] .writing.split > .preview {
+    display: none;
+  }
+  [data-platform="web"] .editor-footer {
+    font-size: 10px;
+  }
+  [data-platform="web"] .sidebar button {
+    min-height: 40px;
+  }
+  [data-platform="web"] .settings-dialog {
+    width: calc(100% - 20px);
+    max-width: 100%;
+  }
+}
+@media (max-width: 450px) {
+  .web-sign-in > section {
+    padding: 23px;
+  }
+  .web-sign-in h1 {
+    font-size: 28px;
+  }
+}

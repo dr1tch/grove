@@ -33,6 +33,9 @@ export class VaultStore {
     this.device = (options.device ?? "Grove client").replace(/[\r\n]/g, " ").slice(0, 80);
     this.#api = new GitHub(ref, token, options.fetch);
   }
+  dispose(): void {
+    this.#api.dispose();
+  }
   #message() {
     return `Grove: ${this.device} ${new Date().toISOString()}`;
   }

@@ -133,6 +133,8 @@ export type AgentReply = {
   }[];
 };
 export interface FolioAPI {
+  readonly platform: "desktop" | "web";
+  releaseAsset(url: string): Promise<void>;
   prepareExport(request: ExportRequest, vaultRoot: string): Promise<PreparedExport>;
   finishExport(
     id: string,

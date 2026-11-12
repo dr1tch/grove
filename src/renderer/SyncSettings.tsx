@@ -4,7 +4,7 @@ import type { SyncConnectRequest, SyncStatus } from "../shared/types";
 
 const folderName = (root: string) => root.split("/").filter(Boolean).pop() || "notes";
 
-export function SyncSettings({ root, changed }: { root: string; changed?: () => void }) {
+function DesktopSyncSettings({ root, changed }: { root: string; changed?: () => void }) {
   const [status, setStatus] = useState<SyncStatus>();
   const [enabled, setEnabled] = useState(false);
   const [mode, setMode] = useState<"" | "create" | "existing">("");
@@ -206,5 +206,56 @@ export function SyncSettings({ root, changed }: { root: string; changed?: () => 
       </div>
       <p className="settings-help sync-note">Your files and git history stay as they are.</p>
     </>
+  );
+}
+
+function BrowserSyncSettings({ root }: { root: string }) {
+  const [status, setStatus] = useState<SyncStatus>(),
+    [error, setError] = useState(""),
+    [busy, setBusy] = useState(false);
+  useEffect(() => {
+    void window.folio
+      .syncStatus(root)
+      .then(setStatus)
+      .catch((reason) => setError(String(reason)));
+    return window.folio.onSync(setStatus);
+  }, [root]);
+  return (
+    <div className="sync-settings">
+      <p>Connected to {root.replace(/^github:/, "")}</p>
+      <p>
+        Text changes are saved locally before upload. Conflicting versions are kept as separate
+        files.
+      </p>
+      <p role="status">
+        {status?.state ?? "Opening sync…"}
+        {status?.message ? ` · ${status.message}` : ""}
+      </p>
+      {error && <p role="alert">{error}</p>}
+      <button
+        className="primary"
+        disabled={busy}
+        onClick={() => {
+          setBusy(true);
+          setError("");
+          void window.folio
+            .syncNow(root)
+            .then(setStatus)
+            .catch((reason) => setError(String(reason)))
+            .finally(() => setBusy(false));
+        }}
+      >
+        Sync now
+      </button>
+      <p>Use Account to reconnect or sign out. Pending edits stay in this browser.</p>
+    </div>
+  );
+}
+
+export function SyncSettings(props: { root: string; changed?: () => void }) {
+  return window.folio.platform === "web" ? (
+    <BrowserSyncSettings root={props.root} />
+  ) : (
+    <DesktopSyncSettings {...props} />
   );
 }

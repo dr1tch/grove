@@ -1,0 +1,10 @@
+{
+  "name": "Grove",
+  "short_name": "Grove",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f5f4f1",
+  "theme_color": "#047857",
+  "icons": [{ "src": "grove-mark.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

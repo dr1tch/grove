@@ -13,6 +13,7 @@ const markdownSchema = {
 import { Workflow, ZoomIn, ZoomOut, Maximize2, X } from "lucide-react";
 import type { Document } from "../shared/types";
 import { CopyButton } from "./CopyButton";
+import { useAsset } from "./useAsset";
 import { DrawingEmbed } from "./DrawingEmbed";
 import { kindOf } from "../shared/types";
 import { Viewer } from "./Viewer";
@@ -225,19 +226,7 @@ function Diagram({ source, dark }: { source: string; dark: boolean }) {
 }
 
 function Asset({ path, alt }: { path: string; alt?: string }) {
-  const [url, setUrl] = useState("");
-  useEffect(() => {
-    let live = true;
-    void window.folio
-      .asset(path)
-      .then((u) => {
-        if (live) setUrl(u);
-      })
-      .catch(() => {});
-    return () => {
-      live = false;
-    };
-  }, [path]);
+  const { url } = useAsset(path);
   return url ? (
     <figure>
       <img src={url} alt={alt || path} />

@@ -4,10 +4,46 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "dev": "vp dev",
+    "build": "vp build && node ../../scripts/web-assets.mjs",
+    "preview": "vp preview"
   },
   "dependencies": {
+    "@codemirror/commands": "latest",
+    "@codemirror/lang-markdown": "latest",
+    "@codemirror/language": "latest",
+    "@codemirror/language-data": "^6.5.2",
+    "@codemirror/state": "latest",
+    "@codemirror/view": "latest",
+    "@excalidraw/excalidraw": "latest",
+    "@fontsource/geist": "latest",
+    "@fontsource/jetbrains-mono": "latest",
+    "@fontsource/source-serif-4": "latest",
     "@grove/core": "workspace:*",
-    "@grove/github-vault": "workspace:*"
+    "@grove/github-vault": "workspace:*",
+    "@lezer/highlight": "latest",
+    "diff": "latest",
+    "lucide-react": "latest",
+    "lz-string": "^1.5.0",
+    "mermaid": "latest",
+    "pdfjs-dist": "latest",
+    "prettier": "^3.10.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-markdown": "latest",
+    "rehype-sanitize": "latest",
+    "remark-gfm": "latest",
+    "shiki": "latest"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.0.0",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "@vitejs/plugin-react": "latest",
+    "tailwindcss": "^4.0.0",
+    "typescript": "latest",
+    "vite": "npm:@voidzero-dev/vite-plus-core@latest",
+    "vite-plus": "^1.6.0"
   }
 }

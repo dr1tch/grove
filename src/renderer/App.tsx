@@ -40,6 +40,7 @@ import {
   type TrashItem,
   type Version,
 } from "../shared/types";
+import { readBrowserDrafts, writeBrowserDrafts } from "./browser-drafts";
 import { DocumentPane } from "./DocumentPane";
 import { QuickSwitcher } from "./QuickSwitcher";
 import { SearchPanel } from "./SearchPanel";
@@ -114,7 +115,8 @@ function Button({
     </Tooltip>
   );
 }
-export function App() {
+export function App({ account }: { account?: React.ReactNode } = {}) {
+  const web = window.folio.platform === "web";
   const [root, setRoot] = useState("");
   const [entries, setEntries] = useState<Entry[]>([]);
   const [tabs, setTabs] = useState<Tab[]>([]);
@@ -242,7 +244,7 @@ export function App() {
     setContentSearch(undefined);
   }, [root]);
   const [renamePlan, setRenamePlan] = useState<RenamePlan>();
-  const [updateLinks, setUpdateLinks] = useState(true);
+  const [updateLinks, setUpdateLinks] = useState(!web);
   const [renameBusy, setRenameBusy] = useState(false);
   const renameContext = useRef({ fileAction, newName });
   renameContext.current = { fileAction, newName };
@@ -469,6 +471,7 @@ export function App() {
         const existing = live.current.tabs.find((t) => t.path === path);
         if (existing) {
           setActive(path, paneId);
+          if (web && matchMedia("(max-width: 750px)").matches) setSidebar(false);
           if (pin) setTabs((ts) => ts.map((t) => (t.path === path ? { ...t, preview: false } : t)));
           return;
         }
@@ -492,6 +495,7 @@ export function App() {
           return next;
         });
         setActive(path, paneId);
+        if (web && matchMedia("(max-width: 750px)").matches) setSidebar(false);
       } catch (e) {
         notify(String(e));
       }
@@ -555,6 +559,13 @@ export function App() {
       const docs = results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
       if (docs.length !== paths.length)
         notify("Some files could not be reopened. Recovery drafts are kept.");
+      const drafts = web ? await readBrowserDrafts(localStorage, vault.root) : [];
+      docs.push(...drafts);
+      if (drafts.length) {
+        restoredLayout.panes[0].tabs.push(...drafts.map((draft) => draft.path));
+        restoredLayout.panes[0].active = drafts[drafts.length - 1].path;
+        for (const draft of drafts) restoredLayout.panes[0].views[draft.path] = { mode: "edit" };
+      }
       live.current.tabs = docs;
       setTabs(docs);
       updateLayout(() =>
@@ -591,7 +602,7 @@ export function App() {
         setSettings({ ...defaults, ...state.settings });
         setSidebar(state.sidebar ?? true);
         setSidebarWidth(state.sidebarWidth ?? 268);
-        setAssistant(state.assistant ?? false);
+        setAssistant(!web && (state.assistant ?? false));
         const vault = await refresh();
         if (vault) {
           live.current.root = vault.root;
@@ -660,6 +671,23 @@ export function App() {
     entries,
   ]);
 
+  useEffect(() => {
+    if (!web || !ready || !root) return;
+    const persist = () => {
+      try {
+        writeBrowserDrafts(localStorage, root, live.current.tabs);
+      } catch {
+        notify("Draft recovery storage is full. Save your new note before leaving.");
+      }
+    };
+    persist();
+    window.addEventListener("pagehide", persist);
+    return () => {
+      persist();
+      window.removeEventListener("pagehide", persist);
+    };
+  }, [web, ready, root, tabs, notify]);
+
   useEffect(
     () =>
       window.folio.onOpen((path) => {
@@ -686,7 +714,7 @@ export function App() {
               ts.map((t) =>
                 live.current.root !== origin || t.id !== current.id
                   ? t
-                  : t.value === t.doc.content
+                  : t.value === t.doc.content || (web && disk.content === t.value)
                     ? {
                         ...t,
                         doc: disk,
@@ -694,8 +722,14 @@ export function App() {
                         disk: undefined,
                         unavailable: undefined,
                       }
-                    : disk.hash === t.doc.hash
-                      ? { ...t, unavailable: undefined }
+                    : disk.hash === t.doc.hash || (web && disk.content === t.doc.content)
+                      ? {
+                          ...t,
+                          doc: disk,
+                          unavailable: undefined,
+                          // Web: GitHub now holds our own base, so a stale banner is not a conflict.
+                          ...(web && disk.content === t.doc.content ? { disk: undefined } : {}),
+                        }
                       : { ...t, disk, unavailable: undefined },
               ),
             ),
@@ -1083,7 +1117,7 @@ export function App() {
     const action = fileAction;
     const target = newName.trim();
     try {
-      if (updateLinks && !renamePlan) {
+      if (!web && updateLinks && !renamePlan) {
         setRenameBusy(true);
         const plan = await window.folio.planRenameLinks(action.path, target, origin);
         if (
@@ -1095,7 +1129,7 @@ export function App() {
           setRenamePlan(plan);
         return;
       }
-      if (updateLinks && renamePlan) {
+      if (!web && updateLinks && renamePlan) {
         if (!canRename(renamePlan)) return;
         setRenameBusy(true);
         await applyLinkRename(renamePlan);
@@ -1267,7 +1301,7 @@ export function App() {
       if (["k", "j", "e", "n", "t", "w", ",", "\\", "tab", "s"].includes(key) || /^\d$/.test(key)) {
         e.preventDefault();
         if (key === "k") setSwitcher(true);
-        if (key === "j") setAssistant((v) => !v);
+        if (key === "j" && !web) setAssistant((v) => !v);
         if (key === "\\") setSidebar((v) => !v);
         if (key === ",") setDialog("settings");
         if (key === "e") mode(e.shiftKey ? "split" : tab?.mode === "edit" ? "preview" : "edit");
@@ -1329,7 +1363,7 @@ export function App() {
   );
   return (
     <div
-      className={`app ${sidebar ? "has-sidebar" : ""} ${assistant ? "has-assistant" : ""}`}
+      className={`app ${sidebar ? "has-sidebar" : ""} ${!web && assistant ? "has-assistant" : ""}`}
       style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}
     >
       {sidebar && (
@@ -1447,6 +1481,7 @@ export function App() {
           </div>
           <footer className="sidebar-footer">
             <button
+              data-desktop
               className="file-row"
               onClick={() =>
                 void window.folio
@@ -1463,7 +1498,7 @@ export function App() {
             </button>
             <div className="vault-row">
               <Tooltip text={[root || "Grove", syncText].filter(Boolean).join(" · ")}>
-                <button className="vault-switch" onClick={() => void folder()}>
+                <button className="vault-switch" disabled={web} onClick={() => void folder()}>
                   <span className="workspace-avatar">
                     <GroveMark size={25} />
                   </span>
@@ -1696,6 +1731,7 @@ export function App() {
           </button>
           <span className="divider" />
         </div>
+        {account}
         <div className="window-controls">
           <Button label="Minimize" onClick={() => void window.folio.window("minimize")}>
             <Minus />
@@ -1718,6 +1754,7 @@ export function App() {
           <div className="menu">
             {tab && entry.kind === "markdown" && (
               <button
+                data-desktop
                 onClick={() => {
                   setExportNote({ path: tab.path, content: tab.value, root });
                   setMenu(false);
@@ -1731,12 +1768,14 @@ export function App() {
             </button>
             <button
               disabled={!tab || isDraft(active)}
+              data-desktop
               onClick={() => void window.folio.external(active, true)}
             >
               <FolderOpen /> Show in Files
             </button>
             <button
               disabled={!tab || isDraft(active)}
+              data-desktop
               onClick={() => void window.folio.external(active)}
             >
               <ExternalLink /> Open externally
@@ -1768,6 +1807,7 @@ export function App() {
               <Pin /> {tab?.pinned ? "Unpin" : "Pin"} tab
             </button>
             <button
+              data-desktop
               onClick={() => {
                 setContext((c) => Array.from(new Set([...c, active])));
                 setAssistant(true);
@@ -1786,6 +1826,7 @@ export function App() {
             </button>
             <hr />
             <button
+              data-desktop
               className="danger-text"
               disabled={!tab || !editable(active, entry.kind)}
               onClick={() => void remove()}
@@ -1948,6 +1989,7 @@ export function App() {
                 </button>
                 <hr />
                 <button
+                  data-desktop
                   role="menuitem"
                   className="danger-text"
                   onClick={() => void deleteEntry(contextMenu.path, contextMenu.root)}
@@ -2011,8 +2053,8 @@ export function App() {
               <label>
                 <input
                   type="checkbox"
-                  checked={updateLinks}
-                  disabled={renameBusy}
+                  checked={!web && updateLinks}
+                  disabled={renameBusy || web}
                   onChange={(event) => setUpdateLinks(event.target.checked)}
                 />{" "}
                 Update links in saved notes
@@ -2089,6 +2131,7 @@ export function App() {
               </button>
               {tab && entry.kind === "markdown" && (
                 <button
+                  data-desktop
                   onClick={() => {
                     setExportNote({ path: tab.path, content: tab.value, root });
                     setMenu(false);
@@ -2321,7 +2364,7 @@ export function App() {
           </div>
         )}
       </main>
-      {assistant && (
+      {!web && assistant && (
         <Assistant
           key={root}
           vaultRoot={root}

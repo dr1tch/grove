@@ -77,7 +77,7 @@ const methods = [
   "exportInfo",
   "exportReady",
 ];
-const api: Record<string, unknown> = {};
+const api: Record<string, unknown> = { platform: "desktop", releaseAsset: async () => {} };
 api.importDropped = async (notePath: string, stamp: number, root: string) => {
   const drop = drops.get(stamp);
   drops.delete(stamp);

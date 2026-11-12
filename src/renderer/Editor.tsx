@@ -436,6 +436,7 @@ export function Editor({
           </button>
         )}
         <button
+          data-desktop
           onClick={() => {
             const e = view.current!;
             const s = e.state.selection.main;
