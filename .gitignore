@@ -5,3 +5,6 @@ release/
 .superpowers/
 qa-artifacts/
 .folio/
+
+# Local Supabase settings for the web build
+apps/web/.env.local
