@@ -1,6 +1,6 @@
 # Grove phone, web and landing page
 
-Status: ready for implementation planning, 2026-11-12. This updates the phone/browser portion of [sync and plugins](grove-sync-plugins.md). The desktop toolbar is implemented separately in the current working tree. No client or deployment work is authorized by merely reading this spec.
+Status: workspace foundation, shared GitHub vault/session, browser IndexedDB cache and static landing implemented locally, 2026-11-12. Phone and browser UI remain unstarted. Landing publishing remains separate. This updates the phone/browser portion of [sync and plugins](grove-sync-plugins.md). The desktop toolbar shipped in 0.5.1. No client or deployment work is authorized by merely reading this spec.
 
 ## Product and architecture
 

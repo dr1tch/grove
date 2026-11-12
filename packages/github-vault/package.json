@@ -1,0 +1,19 @@
+{
+  "name": "@grove/github-vault",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./types": "./src/types.ts",
+    "./github": "./src/github.ts",
+    "./store": "./src/store.ts",
+    "./cache": "./src/cache.ts",
+    "./sync": "./src/sync.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@grove/core": "workspace:*"
+  }
+}

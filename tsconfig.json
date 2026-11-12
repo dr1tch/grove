@@ -11,5 +11,13 @@
     "noEmit": true,
     "types": ["node", "vite-plus/client"]
   },
-  "include": ["src", "*.config.ts"]
+  "include": [
+    "src",
+    "*.config.ts",
+    "packages/core/src",
+    "apps/landing/src",
+    "apps/landing/vite.config.ts",
+    "packages/github-vault/src",
+    "apps/web/src"
+  ]
 }

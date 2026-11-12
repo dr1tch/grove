@@ -31,7 +31,7 @@ try {
   const executable = process.env.FOLIO_SMOKE_EXECUTABLE;
   app = await electron.launch({
     ...(executable ? { executablePath: executable } : {}),
-    args: ["--ozone-platform=x11", ...(executable ? [] : ["."]), `--user-data-dir=${profile}`],
+    args: [...(executable ? [] : ["."]), "--ozone-platform=x11", `--user-data-dir=${profile}`],
   });
   if (process.env.GROVE_EXPECT_VERSION)
     assert.equal(

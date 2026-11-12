@@ -1,29 +1,25 @@
-export type Kind =
-  | "folder"
-  | "markdown"
-  | "drawing"
-  | "text"
-  | "pdf"
-  | "image"
-  | "office"
-  | "audio"
-  | "video"
-  | "unsupported";
-export type Entry = { path: string; name: string; kind: Kind; size: number; modified: number };
-export type Document = { path: string; content: string; hash: string; modified: number };
-export type SaveResult =
-  | { status: "saved"; document: Document }
-  | { status: "conflict"; disk: Document };
-export type Version = { id: string; path: string; content: string; at: number; author: string };
+import type {
+  SyncStatus,
+  Entry,
+  Document,
+  SaveResult,
+  Version,
+  Settings,
+  AttachmentRef,
+  LinkRef,
+} from "@grove/core/types";
+export type {
+  Kind,
+  Entry,
+  Document,
+  SaveResult,
+  Version,
+  Settings,
+  AttachmentRef,
+  LinkRef,
+} from "@grove/core/types";
 export type TrashItem = Version & { deleted: number; directory?: boolean };
-export type Settings = {
-  theme: "light" | "dark" | "system";
-  accent: string;
-  font: "serif" | "sans" | "mono" | "local";
-  localFont?: string;
-  fontSize: number;
-  readingWidth: number;
-};
+
 export type TabState = {
   path: string;
   mode: "edit" | "preview" | "split";
@@ -43,16 +39,7 @@ export type AppState = {
   maximized?: boolean;
   sync?: Record<string, { enabled: boolean }>;
 };
-export type SyncState = "off" | "synced" | "syncing" | "offline" | "conflict" | "error";
-export type SyncStatus = {
-  state: SyncState;
-  lastSync?: number;
-  message?: string;
-  remote?: string;
-  branch?: string;
-  conflicts: string[];
-  skipped: string[];
-};
+export type { SyncState, SyncStatus } from "@grove/core/types";
 export type SyncConnectRequest = { url?: string; createName?: string; confirmDirty?: boolean };
 export type ViewState = {
   mode: TabState["mode"];
@@ -95,7 +82,7 @@ export type PreparedExport = {
   format: "html" | "pdf";
 };
 export type Result<T> = { ok: true; value: T } | { ok: false; error: string };
-export type AttachmentRef = { path: string; kind: Kind; copied: boolean };
+
 export type AttachmentResult = {
   attachments: AttachmentRef[];
   failures: { name: string; error: string }[];
@@ -110,17 +97,7 @@ export type SearchHit = {
   snippet: string;
   unsaved?: boolean;
 };
-export type LinkRef = {
-  sourcePath: string;
-  targetPath: string;
-  from: number;
-  to: number;
-  raw: string;
-  syntax: "markdown" | "wiki" | "definition";
-  fragment: string;
-  missing: boolean;
-  ambiguous: boolean;
-};
+
 export type RenamePlan = {
   id: string;
   source: string;

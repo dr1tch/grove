@@ -1,6 +1,6 @@
 import { defineConfig } from "vite-plus";
 export default defineConfig({
-  test: { include: ["src/**/*.test.ts"], environment: "node" },
+  test: { include: ["src/**/*.test.ts", "packages/**/*.test.ts"], environment: "node" },
   lint: { options: { typeAware: true, typeCheck: true } },
   staged: { "*": "vp check --fix" },
   run: {

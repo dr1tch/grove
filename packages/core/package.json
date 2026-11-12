@@ -1,0 +1,26 @@
+{
+  "name": "@grove/core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./types": "./src/types.ts",
+    "./files": "./src/files.ts",
+    "./file-icons": "./src/file-icons.ts",
+    "./tree": "./src/tree.ts",
+    "./links": "./src/links.ts",
+    "./markdown-format": "./src/markdown-format.ts",
+    "./vault-insert": "./src/vault-insert.ts",
+    "./attachments": "./src/attachments.ts",
+    "./conflicts": "./src/conflicts.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "mdast-util-from-markdown": "2.1.0"
+  },
+  "devDependencies": {
+    "@types/mdast": "4.0.4"
+  }
+}
