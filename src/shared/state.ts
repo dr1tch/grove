@@ -60,5 +60,12 @@ export function cleanState(value: unknown): AppState {
         ? { x: b.x, y: b.y }
         : {}),
     };
+  const sync = v.sync as Record<string, unknown> | undefined;
+  if (sync && typeof sync === "object" && !Array.isArray(sync))
+    result.sync = Object.fromEntries(
+      Object.entries(sync)
+        .filter(([, e]) => !!e && typeof e === "object" && typeof (e as any).enabled === "boolean")
+        .map(([root, e]) => [root, { enabled: (e as { enabled: boolean }).enabled }]),
+    );
   return result;
 }

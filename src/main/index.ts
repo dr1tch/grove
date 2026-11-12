@@ -24,10 +24,11 @@ import { fingerprint, searchVault } from "./search";
 import { assetBytes } from "./assets";
 import type { SearchHit } from "../shared/types";
 import { Links } from "./links";
+import { GitSync } from "./sync";
 import { buildHtmlPreview, htmlCSP } from "./html-preview";
 import { Exports } from "./export";
 import { exportCSP } from "./export-document";
-import type { ExportRequest } from "../shared/types";
+import type { ExportRequest, SyncConnectRequest } from "../shared/types";
 const exports = new Exports(
   () => win,
   () => current(),
@@ -63,6 +64,7 @@ protocol.registerSchemesAsPrivileged([
 ]);
 let win: BrowserWindow;
 let vault: Vault | null = null;
+let gitSync: GitSync | null = null;
 let state: AppState = {};
 const cacheAssets = new Map<string, string>();
 const previews = new Map<
@@ -85,6 +87,21 @@ function saveState() {
     });
   return stateQueue;
 }
+function sync() {
+  if (!gitSync) throw new Error("Open a folder first");
+  return gitSync;
+}
+function startSync(root: string) {
+  gitSync?.stop();
+  const next: GitSync = new GitSync(root, {
+    onStatus: (status) => {
+      // A cycle still running for a previous vault must not overwrite this vault's status.
+      if (gitSync === next && win && !win.isDestroyed()) win.webContents.send("folio:sync", status);
+    },
+  });
+  gitSync = next;
+  if (state.sync?.[root]?.enabled) gitSync.start();
+}
 function current() {
   if (!vault) throw new Error("Open a folder first");
   return vault;
@@ -97,6 +114,7 @@ async function openVault(root: string) {
   const resolved = await realpath(root);
   if (!(await stat(resolved)).isDirectory()) throw new Error("Choose a folder");
   await watcher?.close();
+  gitSync?.stop();
   vault = new Vault(resolved);
   if (state.vault !== resolved) {
     state.tabs = [];
@@ -122,7 +140,14 @@ async function openVault(root: string) {
       if (win && !win.isDestroyed()) win.webContents.send("folio:change", relativePath);
     });
   });
+  startSync(resolved);
   return { root: resolved, entries: await vault.list() };
+}
+/** Schedules a sync after a vault write succeeds. */
+async function saved<T>(write: Promise<T>): Promise<T> {
+  const result = await write;
+  if (state.sync?.[gitSync?.root ?? ""]?.enabled) gitSync?.schedule();
+  return result;
 }
 function register() {
   exports.register();
@@ -208,7 +233,7 @@ function register() {
       return fingerprint(await assetBytes(current(), hit.path)) === hit.sourceHash;
     },
     importAttachments: (notePath: string, sources: string[]) =>
-      importAttachments(current(), notePath, sources),
+      saved(importAttachments(current(), notePath, sources)),
     chooseAttachments: async (notePath: string) => {
       const vault = current();
       const choice = await dialog.showOpenDialog(win, {
@@ -216,7 +241,7 @@ function register() {
       });
       if (choice.canceled) return { attachments: [], failures: [] };
       if (vault !== current()) throw new Error("The active folder changed. Try again.");
-      return importAttachments(vault, notePath, choice.filePaths);
+      return saved(importAttachments(vault, notePath, choice.filePaths));
     },
     pasteScreenshot: async (notePath: string) => {
       const vault = current();
@@ -233,7 +258,7 @@ function register() {
           `Screenshot ${new Date().toISOString().replaceAll(":", "-")}.png`,
         );
         await writeFile(file, image.toPNG(), { flag: "wx" });
-        return await importAttachments(vault, notePath, [file]);
+        return await saved(importAttachments(vault, notePath, [file]));
       } finally {
         await rm(folder, { recursive: true, force: true });
       }
@@ -295,6 +320,30 @@ function register() {
         throw error;
       }
     },
+    syncStatus: () => sync().status(),
+    syncConnect: async (request: SyncConnectRequest) => {
+      const target = sync();
+      const result = await target.connect(request);
+      if (
+        !("needsConfirm" in result) &&
+        result.remote &&
+        result.state !== "error" &&
+        gitSync === target
+      ) {
+        state.sync = { ...state.sync, [target.root]: { enabled: true } };
+        await saveState();
+        target.start();
+      }
+      return result;
+    },
+    syncNow: () => sync().syncNow(),
+    syncDisable: async () => {
+      const target = sync();
+      target.disable();
+      state.sync = { ...state.sync, [target.root]: { enabled: false } };
+      await saveState();
+      return target.status();
+    },
     state: () => state,
     persist: async (next: AppState) => {
       if (!next || typeof next !== "object") throw new Error("Invalid state");
@@ -339,17 +388,18 @@ function register() {
       ].sort((a, b) => a.localeCompare(b));
     },
     mkdir: (path: string) => current().mkdir(path),
-    rename: (path: string, newPath: string) => current().rename(path, newPath),
-    trashEntry: (path: string) => current().trashEntry(path),
+    rename: (path: string, newPath: string) => saved(current().rename(path, newPath)),
+    trashEntry: (path: string) => saved(current().trashEntry(path)),
     read: (path: string) => current().read(path),
-    write: (path: string, content: string, hash: string) => current().write(path, content, hash),
-    create: (path: string, content: string) => current().create(path, content),
+    write: (path: string, content: string, hash: string) =>
+      saved(current().write(path, content, hash)),
+    create: (path: string, content: string) => saved(current().create(path, content)),
     checkpoint: (path: string, content: string) => current().checkpoint(path, content),
     versions: (path: string) => current().versions(path),
-    restore: (path: string, id: string, hash: string) => current().restore(path, id, hash),
+    restore: (path: string, id: string, hash: string) => saved(current().restore(path, id, hash)),
     trash: (path: string, hash: string) => current().trash(path, hash),
     trashList: () => current().trashList(),
-    undelete: (id: string) => current().undelete(id),
+    undelete: (id: string) => saved(current().undelete(id)),
     inspect: async (path: string) => {
       const info = await current().info(path);
       return {
@@ -430,6 +480,10 @@ function register() {
             "prepareExport",
             "finishExport",
             "cancelExport",
+            "syncStatus",
+            "syncConnect",
+            "syncNow",
+            "syncDisable",
           ].includes(method)
         ) {
           const scope = args.pop();
@@ -596,6 +650,11 @@ else {
         state.tabs = [];
       }
     }
+    win.on("focus", () => {
+      const last = gitSync?.status().lastSync;
+      if (state.sync?.[gitSync?.root ?? ""]?.enabled && (!last || Date.now() - last > 60_000))
+        void gitSync?.syncNow();
+    });
     win.on("close", () => {
       state.bounds = win.getNormalBounds();
       state.maximized = win.isMaximized();
@@ -603,6 +662,7 @@ else {
     });
     win.on("closed", () => {
       exports.cancelAll();
+      gitSync?.stop();
       void watcher?.close();
       for (const preview of previews.values()) preview.window.close();
     });

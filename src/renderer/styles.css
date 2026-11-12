@@ -3356,3 +3356,43 @@ dialog,
   width: 14px;
   height: 14px;
 }
+.sync-heading {
+  font: 500 14px Geist;
+  margin: 0 0 14px;
+}
+.sync-form {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+.sync-form input {
+  flex: 1;
+  min-width: 0;
+}
+.sync-box p {
+  font-size: 12px;
+  line-height: 1.6;
+  margin: 0 0 12px;
+}
+.sync-value {
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+.sync-actions {
+  margin-top: 22px;
+}
+.sync-note {
+  margin-top: 10px;
+}
+.settings-content .actions .chosen {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+.vault-switch .sync-status {
+  cursor: pointer;
+}
+.vault-switch .sync-status:hover,
+.vault-switch .sync-status:focus-visible {
+  color: var(--accent);
+}

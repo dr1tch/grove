@@ -1,18 +1,27 @@
 import { useEffect, useState, useRef } from "react";
-import { Check, Maximize, X, Palette, TextCursorInput, Info } from "lucide-react";
+import { Check, Maximize, X, Palette, TextCursorInput, Info, RefreshCw } from "lucide-react";
+import { SyncSettings } from "./SyncSettings";
 import { GroveMark } from "./FolderIcon";
 import type { Settings } from "../shared/types";
 export function Appearance({
   settings,
   change,
   close,
+  root = "",
+  initialSection = "appearance",
+  syncChanged,
 }: {
   settings: Settings;
   change: (s: Settings) => void;
   close: () => void;
+  root?: string;
+  initialSection?: "appearance" | "editor" | "sync" | "about";
+  syncChanged?: () => void;
 }) {
   const modal = useRef<HTMLDialogElement>(null);
-  const [section, setSection] = useState<"appearance" | "editor" | "about">("appearance");
+  const [section, setSection] = useState<"appearance" | "editor" | "sync" | "about">(
+    initialSection,
+  );
   const [fonts, setFonts] = useState<string[]>([]);
   const [error, setError] = useState("");
   useEffect(() => {
@@ -60,6 +69,7 @@ export function Appearance({
             [
               ["appearance", "Appearance", Palette],
               ["editor", "Editor", TextCursorInput],
+              ...(root ? ([["sync", "Sync", RefreshCw]] as const) : []),
               ["about", "About Grove", Info],
             ] as const
           ).map(([id, label, Icon]) => (
@@ -88,7 +98,9 @@ export function Appearance({
               ? "Appearance"
               : section === "editor"
                 ? "Editor"
-                : "About Grove"}
+                : section === "sync"
+                  ? "Sync"
+                  : "About Grove"}
           </h2>
           <button aria-label="Close settings" onClick={close}>
             <X size={16} />
@@ -226,6 +238,7 @@ export function Appearance({
             </p>
           </>
         )}
+        {section === "sync" && root && <SyncSettings root={root} changed={syncChanged} />}
         {section === "about" && (
           <div className="about-grove">
             <GroveMark size={52} />

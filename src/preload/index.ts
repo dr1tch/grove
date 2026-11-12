@@ -69,6 +69,10 @@ const methods = [
   "prepareExport",
   "finishExport",
   "cancelExport",
+  "syncStatus",
+  "syncConnect",
+  "syncNow",
+  "syncDisable",
   "exportInfo",
   "exportReady",
 ];
@@ -114,5 +118,10 @@ api.onSearch = (callback: (batch: unknown) => void) => {
   const listener = (_event: unknown, batch: unknown) => callback(batch);
   ipcRenderer.on("folio:search", listener);
   return () => ipcRenderer.removeListener("folio:search", listener);
+};
+api.onSync = (callback: (status: unknown) => void) => {
+  const listener = (_event: unknown, status: unknown) => callback(status);
+  ipcRenderer.on("folio:sync", listener);
+  return () => ipcRenderer.removeListener("folio:sync", listener);
 };
 contextBridge.exposeInMainWorld("folio", api);

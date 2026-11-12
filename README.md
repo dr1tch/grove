@@ -47,6 +47,7 @@ The package is named `folio` and installs the Grove app. Installers (.deb and Ap
 ### Organising
 
 - Tabs with pins, previews, reopen closed tab and drag to reorder. Two panes side by side.
+- Sync a vault between computers through a private GitHub repository (Settings > Sync).
 - Ctrl+K file switcher, Ctrl+Shift+F search across notes, code and PDF text, Ctrl+F in the current file.
 - Backlinks, broken-link checks and renames that update links.
 - Named workspace presets for layouts and open files.
@@ -83,6 +84,7 @@ Push a tag like `v0.4.2`. CI checks and tests the code, builds the .deb and AppI
 ## Known limits
 
 - Linux only for now. The file layer uses Linux kernel calls, so Windows needs a port of that layer (in progress next).
+- Sync needs git and either the gh CLI or SSH access to GitHub.
 - PDF search reads existing text only, no OCR. Search speed on PDF-heavy vaults is not measured.
 - The assistant cannot yet search the whole vault on its own, see drawings as images, read PDF text or undo accepted proposals.
 - Trash and export recovery copies are not cleaned up automatically. Version history is unbounded.

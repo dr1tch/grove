@@ -2,6 +2,16 @@
 
 All notable changes to Grove. Versions match the GitHub release tags. The apt package is named `folio`.
 
+## 0.5.0 (2026-11-12)
+
+### Added
+
+- Sync a vault between computers through a private GitHub repository. Turn it on in Settings > Sync with "Create private repository" (needs the gh CLI) or "Use existing repository". Grove commits about 30 seconds after your last save, pulls when the vault opens, when the window gets focus and every 5 minutes, and pushes after each commit. Grove never stores a token; it uses your existing git, gh or SSH login.
+- When two computers change the same lines, your version stays in place and the other one is saved beside it as `Note (conflict <device> <date>).md`. A banner offers "Compare side by side". A file deleted on one computer and edited on the other is kept.
+- The sidebar footer shows the sync state: synced, syncing, offline, conflict or error. Offline changes are committed locally and pushed later.
+- Files over 50 MB are not synced and are listed in Settings > Sync. `.folio/`, `.trash/` and export recovery copies are ignored.
+- A folder that is already a git repository with uncommitted changes asks before its first commit. Sync never force-pushes or rewrites history, and turning it off leaves your files and git history as they are.
+
 ## 0.4.7 (2026-11-12)
 
 ### Fixed

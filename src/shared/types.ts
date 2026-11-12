@@ -41,7 +41,19 @@ export type AppState = {
   assistant?: boolean;
   bounds?: { width: number; height: number; x?: number; y?: number };
   maximized?: boolean;
+  sync?: Record<string, { enabled: boolean }>;
 };
+export type SyncState = "off" | "synced" | "syncing" | "offline" | "conflict" | "error";
+export type SyncStatus = {
+  state: SyncState;
+  lastSync?: number;
+  message?: string;
+  remote?: string;
+  branch?: string;
+  conflicts: string[];
+  skipped: string[];
+};
+export type SyncConnectRequest = { url?: string; createName?: string; confirmDirty?: boolean };
 export type ViewState = {
   mode: TabState["mode"];
   selection?: { anchor: number; head: number };
@@ -213,6 +225,14 @@ export interface FolioAPI {
     paths: string[],
     vaultRoot: string,
   ): Promise<AgentReply>;
+  syncStatus(vaultRoot: string): Promise<SyncStatus>;
+  syncConnect(
+    request: SyncConnectRequest,
+    vaultRoot: string,
+  ): Promise<SyncStatus | { needsConfirm: number }>;
+  syncNow(vaultRoot: string): Promise<SyncStatus>;
+  syncDisable(vaultRoot: string): Promise<SyncStatus>;
+  onSync(cb: (status: SyncStatus) => void): () => void;
   onChange(cb: (path: string) => void): () => void;
   onOpen(cb: (path: string) => void): () => void;
 }

@@ -57,6 +57,7 @@ import { cleanState } from "../shared/state";
 import type { AppState, WorkspaceLayout, ViewState } from "../shared/types";
 import { conflictCopyPath, draftMoves } from "../shared/workspace";
 import { Appearance } from "./Appearance";
+import type { SyncStatus } from "../shared/types";
 import { entryPath, suggestedName } from "../shared/tree";
 import { Tooltip } from "./Tooltip";
 import { FileIcon } from "./FileIcon";
@@ -170,10 +171,18 @@ export function App() {
   const [recent, setRecent] = useState<string[]>([]);
   const recentVault = useRef("");
   const [dialog, setDialog] = useState<"settings" | "history" | "trash" | null>(null);
+  const [settingsSection, setSettingsSection] = useState<"appearance" | "sync">("appearance");
+  const [syncOn, setSyncOn] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>();
+  const [syncClock, setSyncClock] = useState(0);
   const [newName, setNewName] = useState("");
   const [showLinks, setShowLinks] = useState(false);
   const [workspacesOpen, setWorkspacesOpen] = useState(false);
-  const [exportNote, setExportNote] = useState<{ path: string; content: string; root: string }>();
+  const [exportNote, setExportNote] = useState<{
+    path: string;
+    content: string;
+    root: string;
+  }>();
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
   useEffect(() => {
     setExportNote(undefined);
@@ -227,6 +236,51 @@ export function App() {
     kind: tab?.readError ? "unsupported" : tab?.asText ? "text" : tab?.kind || originalEntry.kind,
   };
   const notify = useCallback((message: string) => setToast(message), []);
+  // Conflict copies are found by name, so they survive restarts: `<stem> (conflict <device> <date>[ N]).<ext>`.
+  const conflictCopies = syncOn
+    ? entries.filter(
+        (e) =>
+          e.kind !== "folder" &&
+          /^.+ \(conflict .+ \d{4}-\d{2}-\d{2}(?: \d+)?\)(\.[^.]+)?$/.test(e.name),
+      )
+    : [];
+  const activeConflict = (() => {
+    if (!syncOn || !active) return undefined;
+    const slash = active.lastIndexOf("/"),
+      dir = slash < 0 ? "" : active.slice(0, slash + 1),
+      base = active.slice(slash + 1),
+      dot = base.lastIndexOf("."),
+      stem = dot > 0 ? base.slice(0, dot) : base,
+      ext = dot > 0 ? base.slice(dot) : "";
+    const prefix = `${dir}${stem} (conflict `;
+    return conflictCopies.find(
+      (e) =>
+        e.path.startsWith(prefix) &&
+        e.path.endsWith(`)${ext}`) &&
+        /^.+ \d{4}-\d{2}-\d{2}(?: \d+)?$/.test(e.path.slice(prefix.length, -(ext.length + 1))),
+    );
+  })();
+  void syncClock;
+  const syncText = (() => {
+    if (!syncOn) return "";
+    const state = syncStatus?.state;
+    if (state === "syncing") return "Syncing…";
+    if (state === "offline") return "Offline · changes saved locally";
+    if (state === "error") return "Sync error";
+    if (state === "conflict" || conflictCopies.length) {
+      const n = conflictCopies.length || syncStatus?.conflicts.length || 1;
+      return `Conflict · ${n} ${n === 1 ? "file" : "files"} kept both ways`;
+    }
+    if (!syncStatus?.lastSync) return "Syncing…";
+    const minutes = Math.floor((Date.now() - syncStatus.lastSync) / 60_000);
+    return minutes < 1
+      ? "Synced just now"
+      : minutes < 60
+        ? `Synced ${minutes} min ago`
+        : minutes < 1440
+          ? `Synced ${Math.floor(minutes / 60)} h ago`
+          : `Synced ${Math.floor(minutes / 1440)} d ago`;
+  })();
   useEffect(() => {
     if (!root) return;
     let paths = recent;
@@ -267,6 +321,29 @@ export function App() {
     html.dataset.reading = settings.readingWidth === 0 ? "full" : "fixed";
     html.style.setProperty("--local-font", JSON.stringify(settings.localFont || "system-ui"));
   }, [dark, settings]);
+  const loadSync = useCallback(async (vaultRoot: string) => {
+    if (!vaultRoot) {
+      setSyncOn(false);
+      setSyncStatus(undefined);
+      return;
+    }
+    try {
+      const on = !!(await window.folio.state()).sync?.[vaultRoot]?.enabled;
+      if (live.current.root !== vaultRoot) return;
+      setSyncOn(on);
+      setSyncStatus(on ? await window.folio.syncStatus(vaultRoot) : undefined);
+    } catch {
+      setSyncOn(false);
+    }
+  }, []);
+  useEffect(() => {
+    void loadSync(root);
+  }, [root, loadSync]);
+  useEffect(() => window.folio.onSync(setSyncStatus), []);
+  useEffect(() => {
+    const timer = setInterval(() => setSyncClock((n) => n + 1), 30_000);
+    return () => clearInterval(timer);
+  }, []);
   const refresh = useCallback(async () => {
     const vault = await window.folio.list();
     if (vault) {
@@ -406,7 +483,11 @@ export function App() {
   };
   const restoreWorkspace = useCallback(
     async (vault: { root: string; entries: Entry[] }, fallback: AppState = {}) => {
-      let saved: { layout?: unknown; tabs?: TabState[]; expandedFolders?: string[] } = {};
+      let saved: {
+        layout?: unknown;
+        tabs?: TabState[];
+        expandedFolders?: string[];
+      } = {};
       try {
         saved = JSON.parse(localStorage.getItem(`folio:workspace:${vault.root}`) || "{}");
       } catch {}
@@ -1285,16 +1366,39 @@ export function App() {
               <span>Trash</span>
             </button>
             <div className="vault-row">
-              <Tooltip text={root || "Grove"}>
+              <Tooltip text={[root || "Grove", syncText].filter(Boolean).join(" · ")}>
                 <button className="vault-switch" onClick={() => void folder()}>
                   <span className="workspace-avatar">
                     <GroveMark size={25} />
                   </span>
                   <span>
                     <strong>{root ? name(root) : "Grove"}</strong>
-                    <small>
-                      {root ? "Local folder · opened in place" : "Your files, your space"}
-                    </small>
+                    {root && syncText ? (
+                      <small
+                        className="sync-status"
+                        role="button"
+                        tabIndex={0}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSettingsSection("sync");
+                          setDialog("settings");
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setSettingsSection("sync");
+                            setDialog("settings");
+                          }
+                        }}
+                      >
+                        {syncText}
+                      </small>
+                    ) : (
+                      <small>
+                        {root ? "Local folder · opened in place" : "Your files, your space"}
+                      </small>
+                    )}
                   </span>
                   <ChevronsUpDown size={14} />
                 </button>
@@ -1841,6 +1945,14 @@ export function App() {
             close={() => setContentSearch(undefined)}
           />
         )}
+        {activeConflict && (
+          <div className="banner warning">
+            <p>Another device changed this file at the same time. Both versions are kept.</p>
+            <div className="actions">
+              <button onClick={() => openBeside(activeConflict.path)}>Compare side by side</button>
+            </div>
+          </div>
+        )}
         {tab?.unavailable && (
           <div className="banner warning">
             <strong>File unavailable on disk</strong>
@@ -2217,7 +2329,17 @@ export function App() {
         />
       )}
       {dialog === "settings" && (
-        <Appearance settings={settings} change={setSettings} close={() => setDialog(null)} />
+        <Appearance
+          settings={settings}
+          change={setSettings}
+          close={() => {
+            setDialog(null);
+            setSettingsSection("appearance");
+          }}
+          root={root}
+          initialSection={settingsSection}
+          syncChanged={() => void loadSync(root)}
+        />
       )}
       {dialog && dialog !== "settings" && (
         <div
