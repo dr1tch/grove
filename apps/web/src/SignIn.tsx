@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { KeyRound, Mail } from "lucide-react";
 import {
   accounts,
+  captchaSiteKey,
   githubRepositories,
   sendPasswordReset,
   setPassword,
@@ -38,14 +39,19 @@ export function SignIn({
   );
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(initialError),
-    [notice, setNotice] = useState("");
+    [notice, setNotice] = useState(""),
+    [captcha, setCaptcha] = useState(""),
+    [attempt, setAttempt] = useState(0);
   const run = (task: () => Promise<unknown>, fallback: string) => {
     setBusy(true);
     setError("");
     setNotice("");
     void task()
       .catch((reason) => setError(message(reason, fallback)))
-      .finally(() => setBusy(false));
+      .finally(() => {
+        setBusy(false);
+        setAttempt((value) => value + 1);
+      });
   };
   const status = (
     <>
@@ -61,6 +67,8 @@ export function SignIn({
       )}
     </>
   );
+  const check = captchaSiteKey ? <Captcha onToken={setCaptcha} reset={attempt} /> : null;
+  const waiting = !!captchaSiteKey && !captcha;
   if (github)
     return (
       <Frame title="Choose your vault" lead="Pick the private repository that holds your notes.">
@@ -112,10 +120,12 @@ export function SignIn({
       {view === "email" && (
         <EmailForm
           busy={busy}
+          waiting={waiting}
+          check={check}
           status={status}
           submit={(email, password, create) =>
             run(async () => {
-              const session = await signInWithEmail(email, password, create);
+              const session = await signInWithEmail(email, password, create, captcha || undefined);
               // With email confirmation on, sign-up returns no session until the link is opened.
               if (!session) setNotice("Check your email to confirm your account, then sign in.");
               else await connect({ kind: "cloud", userId: session.user.id, email: email.trim() });
@@ -128,10 +138,12 @@ export function SignIn({
       {view === "reset" && (
         <ResetForm
           busy={busy}
+          waiting={waiting}
+          check={check}
           status={status}
           submit={(email) =>
             run(async () => {
-              await sendPasswordReset(email);
+              await sendPasswordReset(email, captcha || undefined);
               setNotice("If an account exists for that address, a reset link is on its way.");
             }, "Could not send the reset email")
           }
@@ -187,12 +199,16 @@ function Frame({ title, lead, children }: { title: string; lead: string; childre
 
 function EmailForm({
   busy,
+  waiting,
+  check,
   status,
   submit,
   forgot,
   back,
 }: {
   busy: boolean;
+  waiting: boolean;
+  check: ReactNode;
   status: ReactNode;
   submit: (email: string, password: string, create: boolean) => void;
   forgot: () => void;
@@ -231,8 +247,9 @@ function EmailForm({
           disabled={busy}
         />
       </label>
+      {check}
       {status}
-      <button className="primary" type="submit" disabled={busy}>
+      <button className="primary" type="submit" disabled={busy || waiting}>
         {busy ? "Please wait…" : create ? "Create account" : "Sign in"}
       </button>
       <button type="button" className="web-link" onClick={() => setCreate(!create)}>
@@ -252,11 +269,15 @@ function EmailForm({
 
 function ResetForm({
   busy,
+  waiting,
+  check,
   status,
   submit,
   back,
 }: {
   busy: boolean;
+  waiting: boolean;
+  check: ReactNode;
   status: ReactNode;
   submit: (email: string) => void;
   back: () => void;
@@ -280,8 +301,9 @@ function ResetForm({
           disabled={busy}
         />
       </label>
+      {check}
       {status}
-      <button className="primary" type="submit" disabled={busy}>
+      <button className="primary" type="submit" disabled={busy || waiting}>
         Send reset link
       </button>
       <button type="button" className="web-link" onClick={back}>
@@ -546,5 +568,67 @@ function GoogleLogo() {
         d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.6-.4-3.9z"
       />
     </svg>
+  );
+}
+
+type Turnstile = {
+  render(host: HTMLElement, options: Record<string, unknown>): string;
+  reset(id: string): void;
+  remove(id: string): void;
+};
+let turnstile: Promise<Turnstile> | undefined;
+function loadTurnstile(): Promise<Turnstile> {
+  return (turnstile ??= new Promise<Turnstile>((done, fail) => {
+    const script = document.createElement("script");
+    script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+    script.async = true;
+    script.onload = () => done((window as unknown as { turnstile: Turnstile }).turnstile);
+    script.onerror = () => {
+      turnstile = undefined;
+      fail(new Error("The security check could not load. Check your connection and retry."));
+    };
+    document.head.append(script);
+  }));
+}
+// Cloudflare Turnstile; each token works once, so `reset` changes after every attempt.
+function Captcha({ onToken, reset }: { onToken: (token: string) => void; reset: number }) {
+  const host = useRef<HTMLDivElement>(null),
+    widget = useRef<string>(undefined),
+    api = useRef<Turnstile>(undefined);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let live = true;
+    loadTurnstile()
+      .then((loaded) => {
+        if (!live || !host.current) return;
+        api.current = loaded;
+        widget.current = loaded.render(host.current, {
+          sitekey: captchaSiteKey,
+          callback: onToken,
+          "expired-callback": () => onToken(""),
+          "error-callback": () => onToken(""),
+        });
+      })
+      .catch((reason: Error) => live && setError(reason.message));
+    return () => {
+      live = false;
+      if (widget.current) api.current?.remove(widget.current);
+      onToken("");
+    };
+  }, [onToken]);
+  useEffect(() => {
+    if (!reset || !widget.current) return;
+    onToken("");
+    api.current?.reset(widget.current);
+  }, [reset, onToken]);
+  return (
+    <>
+      <div ref={host} className="web-captcha" />
+      {error && (
+        <p role="alert" className="web-error">
+          {error}
+        </p>
+      )}
+    </>
   );
 }

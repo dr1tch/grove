@@ -5,16 +5,20 @@ export default defineConfig(({ mode }) => ({
   base: "/grove/app/",
   plugins: [
     {
-      // The page CSP allows only GitHub; add the Supabase origin when accounts are configured.
+      // The page CSP allows only GitHub; add Supabase and the Turnstile captcha when configured.
       name: "web-accounts-csp",
       transformIndexHtml(html) {
-        const url = loadEnv(mode, process.cwd(), "VITE_").VITE_SUPABASE_URL;
-        return url
-          ? html.replace(
-              "connect-src 'self' https://api.github.com",
-              `connect-src 'self' https://api.github.com ${new URL(url).origin}`,
-            )
-          : html;
+        const env = loadEnv(mode, process.cwd(), "VITE_");
+        if (env.VITE_SUPABASE_URL)
+          html = html.replace(
+            "connect-src 'self' https://api.github.com",
+            `connect-src 'self' https://api.github.com ${new URL(env.VITE_SUPABASE_URL).origin}`,
+          );
+        if (env.VITE_TURNSTILE_SITE_KEY)
+          html = html
+            .replace("script-src 'self'", "script-src 'self' https://challenges.cloudflare.com")
+            .replace("frame-src blob:", "frame-src blob: https://challenges.cloudflare.com");
+        return html;
       },
     },
     {

@@ -12,7 +12,12 @@ const url = process.env.SUPABASE_URL,
 async function account() {
   const db = createClient(url!, key!, { auth: { persistSession: false } });
   const email = `qa-${crypto.randomUUID()}@grove.test`;
-  const { data, error } = await db.auth.signUp({ email, password: crypto.randomUUID() });
+  const { data, error } = await db.auth.signUp({
+    email,
+    password: crypto.randomUUID(),
+    // Cloudflare's dummy token, accepted by the Turnstile test secret local Supabase uses.
+    options: { captchaToken: "XXXX.DUMMY.TOKEN.XXXX" },
+  });
   if (error || !data.user) throw error ?? new Error("No user");
   return { db, store: new CloudStore(db, data.user.id, "phone") };
 }

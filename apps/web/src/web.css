@@ -274,3 +274,6 @@ html[data-platform="web"] {
   gap: 6px;
   justify-content: center;
 }
+.web-captcha:empty {
+  display: none;
+}

@@ -74,16 +74,28 @@ export async function signInWith(provider: "github" | "google"): Promise<void> {
   });
   if (error) throw error;
 }
-export async function signInWithEmail(email: string, password: string, create: boolean) {
+// Cloudflare Turnstile site key; when set, Supabase must have captcha enabled with its secret.
+export const captchaSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY as string | undefined;
+export async function signInWithEmail(
+  email: string,
+  password: string,
+  create: boolean,
+  captchaToken?: string,
+) {
   const { data, error } = create
-    ? await accounts!.auth.signUp({ email, password, options: { emailRedirectTo: home() } })
-    : await accounts!.auth.signInWithPassword({ email, password });
+    ? await accounts!.auth.signUp({
+        email,
+        password,
+        options: { emailRedirectTo: home(), captchaToken },
+      })
+    : await accounts!.auth.signInWithPassword({ email, password, options: { captchaToken } });
   if (error) throw error;
   return data.session;
 }
-export async function sendPasswordReset(email: string): Promise<void> {
+export async function sendPasswordReset(email: string, captchaToken?: string): Promise<void> {
   const { error } = await accounts!.auth.resetPasswordForEmail(email, {
     redirectTo: `${home()}?reset=1`,
+    captchaToken,
   });
   if (error) throw error;
 }
