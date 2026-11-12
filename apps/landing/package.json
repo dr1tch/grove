@@ -1,0 +1,27 @@
+{
+  "name": "@grove/landing",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vp dev",
+    "build": "vp build",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "preview": "vp preview"
+  },
+  "dependencies": {
+    "@fontsource/geist": "latest",
+    "@fontsource/source-serif-4": "latest",
+    "lucide-react": "latest",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "@vitejs/plugin-react": "latest",
+    "typescript": "latest",
+    "vite": "npm:@voidzero-dev/vite-plus-core@latest",
+    "vite-plus": "^1.6.0"
+  }
+}

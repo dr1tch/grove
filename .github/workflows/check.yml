@@ -22,3 +22,4 @@ jobs:
           vp test --run
           python3 scripts/vault-races.py
           vp run build
+          vp run '@grove/landing#build'

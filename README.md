@@ -31,6 +31,7 @@ The package is named `folio` and installs the Grove app. Installers (.deb and Ap
 ### Writing and reading
 
 - Markdown editor with autosave, split editing and a GitHub-style preview: tables, tasks, wikilinks, images, Mermaid diagrams and Excalidraw embeds.
+- Formatting toolbar for headings, bold, italic, quotes, code, links, lists and tasks, with undo/redo and Ctrl+B/Ctrl+I shortcuts. Insert from vault reuses existing media, drawings and saved Mermaid source without copying files.
 - Real Excalidraw editor. Drawings stay in their original JSON or Obsidian Excalidraw format.
 - Code files (Vue, JavaScript, TypeScript and more) with syntax colours and formatted previews. CSV and TSV show as tables.
 - HTML and XHTML source beside a safe preview with scripts and network disabled.
@@ -76,6 +77,18 @@ vp run package
 Install the local package with `sudo apt install ./release/folio_<version>_amd64.deb`. Launch Grove from the app grid; Ubuntu's AppArmor sandbox needs the installed package, so do not run an unpacked build with `--no-sandbox`.
 
 UI checks run the real app headless, for example `xvfb-run -a node scripts/smoke.mjs` or `xvfb-run -a node scripts/visual-qa.mjs`. `scripts/readme-screenshot.mjs` regenerates the README screenshots from a demo vault. Some QA scripts expect sample PDFs at local paths; change those paths to your own files.
+
+### Workspaces
+
+The root package remains the Electron app. `packages/core` owns platform-independent file types, classification, icon semantics, links, Markdown formatting, attachments and conflict naming. Desktop imports in `src/shared` re-export those implementations for compatibility. New consumers use the explicit `@grove/core/types`, `/files`, `/file-icons`, `/tree`, `/links`, `/markdown-format`, `/vault-insert`, `/attachments` and `/conflicts` exports. These private packages export TypeScript source for application bundlers; they are not published libraries.
+
+`packages/github-vault` provides the shared SHA-conditional GitHub store, durable text-edit queue and safe conflict copies for future web/phone clients. `apps/web` currently contains only its IndexedDB storage adapter. There is no browser UI or native integration yet, and desktop sync still uses its existing Git CLI implementation. See [the shared vault contract and limits](packages/github-vault/README.md). Run `vp test --run packages/github-vault/src`, the package/web typecheck tasks, and `node scripts/web-cache-qa.mjs` to verify it. The browser QA uses real isolated Chromium storage against a fake repository, never a private vault.
+
+Run `vp check`, `vp test --run` and `vp run build` from the root. Check the core package in isolation with `vp exec tsc --noEmit -p packages/core/tsconfig.json`. Its TypeScript environment excludes Node and browser globals. Vite+ discovers tests under both `src/` and `packages/`. See [the client plan](docs/superpowers/plans/2026-11-12-grove-clients-workspaces.md).
+
+`apps/landing` is the static React/Vite+ landing page. Build it with `vp run '@grove/landing#build'` and check its types with `vp run '@grove/landing#typecheck'`. It outputs to `out/landing` using the `/grove/` project base path. The desktop package includes only `out/main`, `out/preload` and `out/renderer`, so it excludes the landing build. The site uses local fonts, exact Grove logo vectors and a real desktop screenshot. Its phone image is labelled as a design preview; phone and browser apps are not implemented yet.
+
+Start a local landing preview through your registered `devport` command, for example from `apps/landing`: `~/.claude/scripts/devport run landing -- vp preview --host 127.0.0.1 --port '{port}' --strictPort`. Register an unused checkout offset and the `landing` app in `devport` if needed. Then run `GROVE_LANDING_URL=http://127.0.0.1:<port>/grove/ node scripts/landing-qa.mjs` from the root. The QA script uses installed Google Chrome headlessly and checks responsive layouts, keyboard navigation, FAQs, assets and release/source links. Building the landing page does not deploy it or change the APT site.
 
 ## Releases
 

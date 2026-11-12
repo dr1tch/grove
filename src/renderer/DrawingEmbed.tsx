@@ -1,3 +1,4 @@
+import "./excalidraw-assets";
 import { useEffect, useRef, useState } from "react";
 import { decodeDrawing } from "../shared/drawing";
 export function DrawingEmbed({

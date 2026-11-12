@@ -1,5 +1,4 @@
-(window as unknown as { EXCALIDRAW_ASSET_PATH: string }).EXCALIDRAW_ASSET_PATH =
-  "folio://app/excalidraw-assets/";
+import "./excalidraw-assets";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { decodeDrawing, encodeDrawing } from "../shared/drawing";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
