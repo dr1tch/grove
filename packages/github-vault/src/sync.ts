@@ -5,7 +5,7 @@ import { CacheConflict, pendingDocument } from "./cache";
 import type { PendingEdit, VaultCache } from "./cache";
 import { filePath, GitHubError } from "./types";
 import type { VaultEntry } from "./types";
-import { VaultStore } from "./store";
+import type { RemoteStore } from "./remote";
 
 const copyStatus = (status: SyncStatus): SyncStatus => ({
   ...status,
@@ -20,7 +20,7 @@ export class VaultSession {
   #sync = new Set<(status: SyncStatus) => void>();
   #status: SyncStatus = { state: "off", conflicts: [], skipped: [] };
   constructor(
-    readonly store: VaultStore,
+    readonly store: RemoteStore,
     readonly cache: VaultCache,
   ) {
     if (cache.root !== store.root)

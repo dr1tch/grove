@@ -8,12 +8,15 @@
     "./github": "./src/github.ts",
     "./store": "./src/store.ts",
     "./cache": "./src/cache.ts",
-    "./sync": "./src/sync.ts"
+    "./sync": "./src/sync.ts",
+    "./remote": "./src/remote.ts",
+    "./cloud": "./src/cloud.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@grove/core": "workspace:*"
+    "@grove/core": "workspace:*",
+    "@supabase/supabase-js": "^2.119.0"
   }
 }

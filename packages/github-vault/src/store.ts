@@ -16,8 +16,9 @@ import {
   visiblePath,
 } from "./types";
 import type { RepoRef, VaultEntry } from "./types";
+import type { RemoteStore } from "./remote";
 
-export class VaultStore {
+export class VaultStore implements RemoteStore {
   readonly ref: Readonly<RepoRef>;
   readonly root: string;
   readonly device: string;

@@ -29,6 +29,11 @@
 3. **Project setup with the user** (about 30 minutes of their time). Create the Supabase project, Google OAuth client and GitHub OAuth app; add redirect URLs; put the public URL and anon key in the web build.
 4. **Checks** (about half a day). Browser QA for each provider against local Supabase; cross-account isolation test (user A cannot read user B's files); offline queue and conflicts on a cloud vault.
 
+## Required before public launch (from the Stage 1 security review)
+
+- **Storage quota and cleanup:** a per-user byte quota, plus a scheduled job (service role) that deletes blobs no `vault_files` or `vault_versions` row references and caps versions per path. Until then, an account can upload unreferenced 50 MiB blobs without limit.
+- **Account deletion:** delete `vaults/<uid>/` objects through the Storage API before `auth.admin.deleteUser`. Rows cascade; blobs do not.
+
 ## Not in scope yet
 
 - Moving a vault between GitHub and the cloud.
