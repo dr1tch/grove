@@ -164,12 +164,22 @@ html[data-platform="web"] {
   [data-platform="web"] .title-actions {
     gap: 2px;
   }
-  [data-platform="web"] .title-actions .seg {
+  /* One pane on phones: keep Edit/Preview and Account; theme stays in Settings. */
+  [data-platform="web"] .title-actions .seg button:last-child,
+  [data-platform="web"] .title-actions [aria-label="Open beside"],
+  [data-platform="web"] .title-actions [aria-label="Toggle light/dark"],
+  [data-platform="web"] .titlebar .drag-handle,
+  [data-platform="web"] .title-actions .divider {
     display: none;
   }
   [data-platform="web"] .title-actions button {
     width: 34px;
     min-width: 34px;
+  }
+  [data-platform="web"] .title-actions .seg button {
+    width: auto;
+    min-width: 0;
+    padding-inline: 8px;
   }
   [data-platform="web"] .web-account-button {
     font-size: 11px;

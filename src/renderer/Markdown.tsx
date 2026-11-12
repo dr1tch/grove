@@ -333,8 +333,13 @@ export function Markdown({
         <>
           <h1 id={id}>{children}</h1>
           <div className="meta">
-            Edited {new Date(doc.modified).toLocaleDateString()}
-            <span>·</span>
+            {/* Browser vaults have no file times, so the date is omitted there. */}
+            {doc.modified > 0 && (
+              <>
+                Edited {new Date(doc.modified).toLocaleDateString()}
+                <span>·</span>
+              </>
+            )}
             {value.trim().split(/\s+/).length} words<span>·</span>
             {Math.max(1, Math.ceil(value.trim().split(/\s+/).length / 220))} min read
           </div>

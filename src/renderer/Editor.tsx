@@ -108,8 +108,16 @@ export function Editor({
       anchors.current.delete(insertion.end);
     }
     setInsertion(undefined);
-    view.current?.focus();
   };
+  // Focus after the modal dialog unmounts; while it is open the editor is inert.
+  const wasInserting = useRef(false);
+  useEffect(() => {
+    if (insertion) wasInserting.current = true;
+    else if (wasInserting.current) {
+      wasInserting.current = false;
+      view.current?.focus();
+    }
+  }, [insertion]);
   async function attach(load: () => Promise<AttachmentResult>, at?: number) {
     const editor = view.current,
       target = attachmentTarget;

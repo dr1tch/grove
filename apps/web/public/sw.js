@@ -37,7 +37,8 @@ self.addEventListener("fetch", (event) => {
   event.respondWith(
     (async () => {
       const cache = await caches.open(VERSION);
-      const saved = await cache.match(request);
+      // Fonts and module scripts carry Origin; servers may send Vary: Origin on the stored copy.
+      const saved = await cache.match(request, { ignoreVary: true });
       if (saved) return saved;
       const response = await fetch(request);
       if (response.ok) await cache.put(request, response.clone());
