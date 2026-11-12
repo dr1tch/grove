@@ -1499,7 +1499,15 @@ export function App({ account }: { account?: React.ReactNode } = {}) {
             </button>
             <div className="vault-row">
               <Tooltip text={[root || "Grove", syncText].filter(Boolean).join(" · ")}>
-                <button className="vault-switch" disabled={web} onClick={() => void folder()}>
+                <button
+                  className="vault-switch"
+                  onClick={() => {
+                    // The browser has no folder picker: the vault card opens its sync details.
+                    if (!web) return void folder();
+                    setSettingsSection("sync");
+                    setDialog("settings");
+                  }}
+                >
                   <span className="workspace-avatar">
                     <GroveMark size={25} />
                   </span>

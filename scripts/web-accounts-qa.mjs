@@ -89,6 +89,33 @@ try {
   await page.screenshot({ path: resolve(output, "cloud-vault.png") });
   console.log("PASS: email sign-up, cloud vault, saved note and reload.");
 
+  // Account > Connect GitHub links GitHub to this account with repo access and returns to the picker.
+  await page.getByRole("button", { name: "Repository account" }).click();
+  const link = page.waitForRequest((r) => r.url().includes("/auth/v1/user/identities/authorize"));
+  await page.getByRole("button", { name: "Connect GitHub repository" }).click();
+  const authorize = new URL((await link).url());
+  assert.equal(authorize.searchParams.get("provider"), "github");
+  assert.equal(authorize.searchParams.get("scopes"), "repo");
+  assert.ok(authorize.searchParams.get("redirect_to")?.includes("link=github"));
+  // Local Supabase has no GitHub app, so it refuses here; the dialog must say so, not hang.
+  await page.getByRole("dialog", { name: "Repository account" }).getByRole("alert").waitFor();
+  await page.getByRole("button", { name: "Back to notes" }).click();
+  // Returning from a link GitHub refused (account already used elsewhere) explains it, still signed in.
+  await page.goto(
+    `${target}?link=github&error=server_error&error_code=identity_already_exists&error_description=Identity+is+already+linked+to+another+user`,
+  );
+  await page
+    .getByRole("dialog", { name: "Repository account" })
+    .getByRole("alert")
+    .filter({ hasText: "already has its own Grove sign-in" })
+    .waitFor();
+  assert.equal(new URL(page.url()).search, "");
+  await page.getByRole("button", { name: "Back to notes" }).click();
+  await row("Cloud note.md").waitFor();
+  console.log(
+    "PASS: Connect GitHub requests identity linking with repo scope and explains refusals.",
+  );
+
   // Another account cannot see it.
   await signOut();
   await emailForm(other, "other-password-1", true);

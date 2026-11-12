@@ -22,8 +22,20 @@ export const accounts: SupabaseClient | undefined =
         auth: { flowType: "pkce", storageKey: "grove:web:account", detectSessionInUrl: true },
       })
     : undefined;
-// Read before Supabase rewrites the URL: a password-reset link returns with ?reset=1.
-export const resettingPassword = new URLSearchParams(location.search).has("reset");
+// Read before Supabase rewrites the URL: a password-reset link returns with ?reset=1, and
+// connecting GitHub from Account returns with ?link=github.
+const returned = new URLSearchParams(location.search);
+export const resettingPassword = returned.has("reset");
+export const connectingGitHub = returned.get("link") === "github";
+// Supabase reports a failed OAuth sign-in or link in the URL (query for PKCE, hash otherwise).
+const failure = new URLSearchParams(location.hash.slice(1)).get("error_code")
+  ? new URLSearchParams(location.hash.slice(1))
+  : returned;
+export const returnedError = failure.get("error_code")
+  ? failure.get("error_code") === "identity_already_exists"
+    ? "This GitHub account already has its own Grove sign-in, so it can't be linked here. Sign out and use Continue with GitHub, or delete that other Grove account first."
+    : failure.get("error_description") || "Sign-in with the provider failed. Try again."
+  : "";
 const home = () => new URL(import.meta.env.BASE_URL, location.origin).href;
 
 export function storedCredentials(): Credentials | undefined {
@@ -59,11 +71,25 @@ export function rememberCredentials(value: Credentials): void {
 export function cloudCredentials(session: Session): CloudCredentials {
   return { kind: "cloud", userId: session.user.id, email: session.user.email ?? "" };
 }
-// The GitHub token from a GitHub sign-in, present only right after the OAuth redirect.
+// The GitHub token from a GitHub sign-in or link, present only right after the OAuth redirect.
 export function githubToken(session: Session | null): string | undefined {
-  return session?.user.app_metadata.provider === "github"
-    ? (session.provider_token ?? undefined)
+  return session?.user.app_metadata.provider === "github" || connectingGitHub
+    ? (session?.provider_token ?? undefined)
     : undefined;
+}
+// Adds GitHub to the signed-in Grove account, or re-authorizes it when already linked, then
+// returns to the repository picker. Needs "Allow manual linking" on the Supabase project.
+export async function connectGitHub(): Promise<void> {
+  const { data } = await accounts!.auth.getUser();
+  const options = { redirectTo: `${home()}?link=github`, scopes: "repo" };
+  const linked = data.user?.identities?.some((identity) => identity.provider === "github");
+  const { error } = linked
+    ? await accounts!.auth.signInWithOAuth({ provider: "github", options })
+    : await accounts!.auth.linkIdentity({ provider: "github", options });
+  if (error) throw error;
+}
+export async function accountSession(): Promise<Session | null> {
+  return accounts ? (await accounts.auth.getSession()).data.session : null;
 }
 
 export async function signInWith(provider: "github" | "google"): Promise<void> {
