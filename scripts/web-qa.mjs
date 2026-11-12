@@ -93,6 +93,9 @@ try {
   );
   await page.goto(target);
   await page.getByRole("heading", { name: "Your vault, in your browser." }).waitFor();
+  // Builds with accounts configured put the token form behind a link.
+  const tokenLink = page.getByRole("button", { name: "Use a GitHub token instead" });
+  if (await tokenLink.isVisible()) await tokenLink.click();
   await page.getByLabel("GitHub owner", { exact: true }).fill("fixture");
   await page.getByLabel("Repository", { exact: true }).fill("vault");
   await page.getByLabel("Fine-grained access token", { exact: true }).fill("bad-token");
@@ -294,11 +297,24 @@ try {
 
   fake.set(welcome, "# Welcome\n\nChanged on GitHub.\n");
   await type("\nLocal after remote change.");
-  await until(() => conflictWrites().length > 0, "conflict copy written");
+  // Either sync writes a conflict copy, or the save sees the newer GitHub version first and
+  // the tab shows the conflict banner with the local text intact. Both keep both versions.
+  const banner = page.getByText("Another device changed this file at the same time.");
+  await until(
+    async () => conflictWrites().length > 0 || (await banner.isVisible()),
+    "conflict copy or conflict banner",
+  );
   assert.equal(fake.text(welcome), "# Welcome\n\nChanged on GitHub.\n");
-  await page.locator(".sync-status", { hasText: "Conflict" }).waitFor();
+  if (conflictWrites().length)
+    await page.locator(".sync-status", { hasText: "Conflict" }).waitFor();
+  else
+    assert.ok(
+      (await page.locator(".cm-content").first().innerText()).includes(
+        "Local after remote change.",
+      ),
+    );
   await page.screenshot({ path: resolve(output, "conflict.png") });
-  console.log("PASS: same-note conflict keeps GitHub's version and writes a conflict copy.");
+  console.log("PASS: same-note conflict keeps GitHub's version and the local edit.");
   assert.deepEqual(errors, []);
 } catch (error) {
   const page = context.pages()[0];

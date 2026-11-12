@@ -23,6 +23,7 @@
     "@grove/core": "workspace:*",
     "@grove/github-vault": "workspace:*",
     "@lezer/highlight": "latest",
+    "@supabase/supabase-js": "^2.119.0",
     "diff": "latest",
     "lucide-react": "latest",
     "lz-string": "^1.5.0",

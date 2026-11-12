@@ -11,8 +11,18 @@ import "@fontsource/jetbrains-mono/latin-700.css";
 import "../../../src/renderer/styles.css";
 import "./web.css";
 import { SignIn } from "./SignIn";
-import { forgetCredentials, openVault, rememberCredentials, storedCredentials } from "./auth";
-import type { Credentials } from "./auth";
+import {
+  accounts,
+  cloudCredentials,
+  forgetCredentials,
+  githubToken,
+  openVault,
+  rememberCredentials,
+  resettingPassword,
+  signOutAccount,
+  storedCredentials,
+} from "./auth";
+import type { CloudCredentials, Credentials } from "./auth";
 import { createWebBridge } from "./bridge";
 import { GitHubError } from "@grove/github-vault/types";
 const DesktopApp = lazy(() =>
@@ -29,7 +39,10 @@ function Root() {
   const [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
     [account, setAccount] = useState(false),
-    [pending, setPending] = useState(0);
+    [pending, setPending] = useState(0),
+    [github, setGithub] = useState<string>(),
+    [cloud, setCloud] = useState<CloudCredentials>(),
+    [recovering, setRecovering] = useState(resettingPassword);
   const previous = useRef(storedCredentials());
   const mounted = useRef(true);
   const live = useRef(active);
@@ -50,6 +63,8 @@ function Root() {
         "Browser could not store the connection. Check storage access before retrying.",
       );
     }
+    setGithub(undefined);
+    setRecovering(false);
     const bridge = createWebBridge(vault.session);
     window.folio = bridge;
     setActive({ credentials, vault, bridge });
@@ -60,7 +75,21 @@ function Root() {
     let cancelled = false;
     void (async () => {
       try {
-        if (previous.current && !cancelled) await activate(previous.current, true);
+        if (resettingPassword) return;
+        // Waits for Supabase to finish an OAuth or email-link redirect, if one is in the URL.
+        const session = accounts ? (await accounts.auth.getSession()).data.session : null;
+        if (cancelled) return;
+        const token = githubToken(session),
+          stored = previous.current;
+        if (session) setCloud(cloudCredentials(session));
+        if (token && !(stored?.kind === "github" && stored.token === token)) {
+          setGithub(token);
+          return;
+        }
+        if (stored?.kind === "cloud" && session && session.user.id !== stored.userId)
+          await activate(cloudCredentials(session));
+        else if (stored) await activate(stored, true);
+        else if (session) await activate(cloudCredentials(session));
       } catch (reason) {
         // Only a rejected token is forgotten; rate limits, outages and storage errors keep it.
         if (
@@ -68,7 +97,8 @@ function Root() {
           ["auth", "no-access", "not-found"].includes(reason.kind)
         ) {
           forgetCredentials();
-          if (previous.current) previous.current = { ...previous.current, token: "" };
+          if (previous.current?.kind === "github")
+            previous.current = { ...previous.current, token: "" };
         }
         setError(reason instanceof Error ? reason.message : "Reconnect to your vault");
       } finally {
@@ -89,7 +119,10 @@ function Root() {
       return;
     }
     forgetCredentials();
-    previous.current = { ...active.credentials, token: "" };
+    await signOutAccount();
+    previous.current =
+      active.credentials.kind === "github" ? { ...active.credentials, token: "" } : undefined;
+    setCloud(undefined);
     active.bridge.dispose();
     await active.vault.cache.close();
     window.folio = createWebBridge();
@@ -108,6 +141,9 @@ function Root() {
       <SignIn
         previous={previous.current}
         initialError={error}
+        github={github}
+        cloud={cloud}
+        recovering={recovering}
         connect={(credentials) => activate(credentials)}
       />
     );
@@ -144,15 +180,16 @@ function Root() {
             aria-label="Repository account"
             className="modal web-account"
           >
-            <h2>Repository account</h2>
+            <h2>Account</h2>
             <p>
-              {active.credentials.ref.owner}/{active.credentials.ref.repo} ·{" "}
-              {active.credentials.ref.branch}
+              {active.credentials.kind === "cloud"
+                ? `Grove cloud · ${active.credentials.email || "signed in"}`
+                : `${active.credentials.ref.owner}/${active.credentials.ref.repo} · ${active.credentials.ref.branch}`}
             </p>
             <p>
               {pending
-                ? `${pending} local changes are waiting to sync. They stay in this browser after sign-out. Reconnect to this repository to recover them.`
-                : "Your saved vault cache stays in this browser. Signing out removes the access token."}
+                ? `${pending} local changes are waiting to sync. They stay in this browser after sign-out. Sign in to this vault again to recover them.`
+                : "Your saved vault cache stays in this browser. Signing out removes your access from it."}
             </p>
             {error && (
               <p role="alert" className="web-error">

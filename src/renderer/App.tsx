@@ -80,6 +80,7 @@ const defaults: Settings = {
 const editable = (path: string, kind = kindOf(path)) =>
   ["markdown", "text", "drawing", "unsupported"].includes(kind);
 const name = (path: string) => path.split("/").pop()?.replace(/\.md$/, "") || path;
+const vaultName = (root: string) => (root.startsWith("cloud:") ? "Grove cloud" : name(root));
 // A new note lives only in its tab until the user saves it; its name is its first heading.
 const DRAFT = "draft://";
 const isDraft = (path: string) => path.startsWith(DRAFT);
@@ -1503,7 +1504,7 @@ export function App({ account }: { account?: React.ReactNode } = {}) {
                     <GroveMark size={25} />
                   </span>
                   <span>
-                    <strong>{root ? name(root) : "Grove"}</strong>
+                    <strong>{root ? vaultName(root) : "Grove"}</strong>
                     {root && syncText ? (
                       <small
                         className="sync-status"
@@ -2008,7 +2009,7 @@ export function App({ account }: { account?: React.ReactNode } = {}) {
           folders={entries.filter((e) => e.kind === "folder").map((e) => e.path)}
           folder={selectedFolder}
           closing={draftSave.closing}
-          vaultName={name(root)}
+          vaultName={vaultName(root)}
           save={saveDraft}
           discard={() => {
             const path = draftSave.path;

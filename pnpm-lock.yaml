@@ -217,6 +217,9 @@ importers:
       '@lezer/highlight':
         specifier: latest
         version: 1.2.5
+      '@supabase/supabase-js':
+        specifier: ^2.119.0
+        version: 2.119.0
       diff:
         specifier: latest
         version: 9.0.0

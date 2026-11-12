@@ -222,7 +222,7 @@ function BrowserSyncSettings({ root }: { root: string }) {
   }, [root]);
   return (
     <div className="sync-settings">
-      <p>Connected to {root.replace(/^github:/, "")}</p>
+      <p>Connected to {root.startsWith("cloud:") ? "Grove cloud" : root.replace(/^github:/, "")}</p>
       <p>
         Text changes are saved locally before upload. Conflicting versions are kept as separate
         files.

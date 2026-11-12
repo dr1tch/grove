@@ -18,8 +18,11 @@ function result<T>(request: IDBRequest<T>): Promise<T> {
 export class BrowserCache implements VaultCache {
   readonly root: string;
   #database: Promise<IDBDatabase>;
-  constructor(ref: RepoRef) {
-    this.root = rootOf(ref);
+  // A GitHub repository, or a cloud vault root (`cloud:<user id>`).
+  constructor(source: RepoRef | string) {
+    if (typeof source === "string" && !/^cloud:[\da-f-]{36}$/.test(source))
+      throw new Error("Invalid vault root.");
+    this.root = typeof source === "string" ? source : rootOf(source);
     this.#database = new Promise((resolve, reject) => {
       const request = indexedDB.open(`grove-vault:${this.root}`, 1);
       let blocked = false;
