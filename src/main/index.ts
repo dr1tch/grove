@@ -569,7 +569,10 @@ else {
     });
     win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
     win.webContents.on("will-navigate", (e) => e.preventDefault());
-    win.webContents.session.setPermissionRequestHandler((_wc, _permission, cb) => cb(false));
+    // Only the media player's fullscreen button is allowed; everything else (camera, mic, ...) stays denied.
+    win.webContents.session.setPermissionRequestHandler((wc, permission, cb) =>
+      cb(permission === "fullscreen" && wc === win.webContents),
+    );
     win.webContents.session.webRequest.onHeadersReceived((details, cb) =>
       cb({
         responseHeaders: {

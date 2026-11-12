@@ -104,10 +104,7 @@ function DocumentPreview({
       document.fullscreenElement ? document.exitFullscreen() : shell.current?.requestFullscreen()
     )?.catch(() => {});
   const fitScale = mediaSize.width
-    ? Math.max(
-        0.01,
-        Math.min((size.width - 64) / mediaSize.width, (size.height - 64) / mediaSize.height),
-      )
+    ? Math.max(0.01, Math.min(size.width / mediaSize.width, size.height / mediaSize.height))
     : 1;
   const mediaScale = fit ? fitScale : scale;
   const zoom = media ? mediaScale : renderedScale;
@@ -180,8 +177,15 @@ function DocumentPreview({
   useEffect(() => {
     const element = view.current!;
     const observer = new ResizeObserver(() =>
-      setSize({ width: element.clientWidth, height: element.clientHeight }),
-    );
+    // Fit inside the content box, so the CSS padding (large in tabs, none in note embeds) decides the margin.
+    {
+      const style = getComputedStyle(element);
+      setSize({
+        width: element.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight),
+        height:
+          element.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom),
+      });
+    });
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
@@ -207,10 +211,7 @@ function DocumentPreview({
         if (cancelled || !canvas.current) return;
         const base = p.getViewport({ scale: 1.4 });
         const zoom = fit
-          ? Math.max(
-              0.01,
-              Math.min((size.width - 64) / base.width, (size.height - 64) / base.height),
-            )
+          ? Math.max(0.01, Math.min(size.width / base.width, size.height / base.height))
           : scale;
         const viewport = p.getViewport({ scale: zoom * 1.4 });
         setPdfViewport(viewport);
@@ -258,7 +259,7 @@ function DocumentPreview({
               },
             });
         }}
-        className={`${video ? "video-view" : image ? "image-view" : "pdf-view"}${media && (mediaSize.width * mediaScale > size.width - 64 || mediaSize.height * mediaScale > size.height - 64) ? " pannable" : ""}${dragging ? " panning" : ""}`}
+        className={`${video ? "video-view" : image ? "image-view" : "pdf-view"}${media && (mediaSize.width * mediaScale > size.width || mediaSize.height * mediaScale > size.height) ? " pannable" : ""}${dragging ? " panning" : ""}`}
         onPointerDown={(event) => {
           suppressClick.current = false;
           if (

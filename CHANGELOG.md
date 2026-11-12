@@ -2,6 +2,26 @@
 
 All notable changes to Grove. Versions match the GitHub release tags. The apt package is named `folio`.
 
+## 0.4.7 (2026-11-12)
+
+### Fixed
+
+- Videos embedded in notes fill the note width at 16:9 instead of shrinking inside a fixed 430px box. Media fit now uses the frame's real padding, so tabs keep their margin and embeds use the full space.
+- Embedded media show the real file size instead of 0.0 KB.
+
+## 0.4.6 (2026-11-12)
+
+### Fixed
+
+- The video fullscreen button and F key work. Grove denied the browser's fullscreen permission along with every other permission; fullscreen is now allowed for the main window only. Escape leaves fullscreen.
+
+### Changed
+
+- Skip buttons show circular arrows with "10" instead of previous/next-track icons.
+- Playback speed menu (0.5× to 2×) in the video and audio players; `<` and `>` step the speed.
+- Play button and selected speed use a lighter accent so they stay readable on the black control bar.
+- `scripts/video-controls-qa.mjs` clicks every control and key and fails if any does nothing.
+
 ## 0.4.5 (2026-11-11)
 
 ### Changed

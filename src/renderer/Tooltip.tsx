@@ -12,12 +12,16 @@ import { createPortal } from "react-dom";
 export function Tooltip({
   text,
   children,
+  hidden = false,
 }: {
   text: string;
   children: ReactElement<HTMLAttributes<HTMLElement>>;
+  /** Suppresses the tooltip, e.g. while the trigger's own menu is open. */
+  hidden?: boolean;
 }) {
   const id = useId();
-  const [open, setOpen] = useState(false);
+  const [hovered, setOpen] = useState(false);
+  const open = hovered && !hidden;
   const trigger = useRef<HTMLElement | null>(null);
   const popup = useRef<HTMLDivElement>(null);
   const delay = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);

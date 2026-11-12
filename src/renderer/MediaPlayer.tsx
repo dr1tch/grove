@@ -6,7 +6,17 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
-import { Music, Pause, Play, SkipBack, SkipForward, Volume2, VolumeX } from "lucide-react";
+import {
+  Check,
+  Gauge,
+  Music,
+  Pause,
+  Play,
+  RotateCcw,
+  RotateCw,
+  Volume2,
+  VolumeX,
+} from "lucide-react";
 import { Tooltip } from "./Tooltip";
 
 export function formatTime(seconds: number) {
@@ -32,6 +42,7 @@ const EVENTS = [
   "playing",
   "canplay",
   "seeked",
+  "ratechange",
 ];
 
 /** Re-renders on media events and returns the element's current playback state. */
@@ -68,6 +79,7 @@ export function useMediaState(ref: RefObject<HTMLMediaElement | null>) {
     buffered: Math.min(1, buffered),
     volume: media?.volume ?? 1,
     muted: Boolean(media && (media.muted || media.volume === 0)),
+    rate: media?.playbackRate ?? 1,
   };
 }
 
@@ -94,7 +106,15 @@ export function toggleMute(media: HTMLMediaElement) {
   }
 }
 
-/** Space/K play, arrows ±5 s, J/L ±10 s, M mute, F fullscreen. Returns true when handled. */
+export const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
+/** Steps the playback speed one notch up or down the SPEEDS list. */
+export function setRate(media: HTMLMediaElement, step: number) {
+  const index = SPEEDS.findIndex((speed) => speed >= media.playbackRate);
+  media.playbackRate =
+    SPEEDS[Math.min(SPEEDS.length - 1, Math.max(0, (index < 0 ? 2 : index) + step))];
+}
+
+/** Space/K play, arrows ±5 s, J/L ±10 s, M mute, F fullscreen, < > speed, Esc leaves fullscreen. */
 export function handleMediaKey(
   event: KeyboardEvent,
   media: HTMLMediaElement | null,
@@ -111,6 +131,8 @@ export function handleMediaKey(
   else if (key === "l") skip(media, 10);
   else if (key === "m") toggleMute(media);
   else if (key === "f" && onFullscreen) onFullscreen();
+  else if (event.key === ">" || event.key === "<") setRate(media, event.key === ">" ? 1 : -1);
+  else if (key === "escape" && document.fullscreenElement) void document.exitFullscreen();
   else return false;
   event.preventDefault();
   return true;
@@ -207,7 +229,10 @@ export function PlayerControls({
           {button(
             "Back 10 seconds (J)",
             () => media.current && skip(media.current, -10),
-            <SkipBack />,
+            <span className="player-skip">
+              <RotateCcw />
+              <b>10</b>
+            </span>,
           )}
           {button(
             state.playing ? "Pause (K)" : "Play (K)",
@@ -218,7 +243,10 @@ export function PlayerControls({
           {button(
             "Forward 10 seconds (L)",
             () => media.current && skip(media.current, 10),
-            <SkipForward />,
+            <span className="player-skip">
+              <RotateCw />
+              <b>10</b>
+            </span>,
           )}
           <div className="player-volume">
             {button(
@@ -244,8 +272,70 @@ export function PlayerControls({
             {formatTime(state.time)} / {formatTime(state.duration)}
           </span>
         </div>
-        {children && <div className="player-group">{children}</div>}
+        <div className="player-group">
+          <SpeedMenu media={media} rate={state.rate} />
+          {children}
+        </div>
       </div>
+    </div>
+  );
+}
+
+function SpeedMenu({ media, rate }: { media: RefObject<HTMLMediaElement | null>; rate: number }) {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: Event) => {
+      if (
+        event instanceof KeyboardEvent
+          ? event.key === "Escape"
+          : !root.current?.contains(event.target as Node)
+      ) {
+        event.stopPropagation();
+        setOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", close, true);
+    document.addEventListener("keydown", close, true);
+    return () => {
+      document.removeEventListener("pointerdown", close, true);
+      document.removeEventListener("keydown", close, true);
+    };
+  }, [open]);
+  return (
+    <div className="player-speed" ref={root}>
+      <Tooltip text="Playback speed (< >)" hidden={open}>
+        <button
+          type="button"
+          aria-label="Playback speed"
+          aria-haspopup="menu"
+          aria-expanded={open}
+          className={rate !== 1 ? "player-speed-active" : ""}
+          onClick={() => setOpen(!open)}
+        >
+          {rate === 1 ? <Gauge /> : <span className="player-rate">{rate}×</span>}
+        </button>
+      </Tooltip>
+      {open && (
+        <div className="player-menu" role="menu" aria-label="Playback speed">
+          {SPEEDS.map((speed) => (
+            <button
+              key={speed}
+              type="button"
+              role="menuitemradio"
+              aria-checked={speed === rate}
+              onClick={() => {
+                if (media.current) media.current.playbackRate = speed;
+                setOpen(false);
+              }}
+            >
+              <span>{speed === 1 ? "Normal" : `${speed}×`}</span>
+              {speed === rate && <Check />}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

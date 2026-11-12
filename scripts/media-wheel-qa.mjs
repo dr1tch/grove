@@ -228,7 +228,7 @@ try {
   await page.waitForFunction(() => document.querySelector(".audio-player audio").readyState >= 1);
   await page.locator(".audio-big-play").click();
   await page.waitForFunction(() => !document.querySelector(".audio-player audio").paused);
-  assert.ok(await page.locator(".audio-player.playing").count(), "Playing state animates the bars");
+  await page.locator(".audio-player.playing").waitFor(); // playing state animates the bars
   await page.locator(".audio-big-play").click();
   await page.waitForFunction(() => document.querySelector(".audio-player audio").paused);
   const audioTrack = await page

@@ -1131,6 +1131,17 @@ kbd {
 .attachment-view:has(.audio-player) {
   height: auto;
 }
+/* Videos in notes fill the note width at 16:9 (plus the file strip) instead of a fixed 430px box. */
+.embed-video {
+  container-type: inline-size;
+}
+.embed-video .attachment-view {
+  height: calc(100cqw * 9 / 16 + 45px);
+}
+.attachment-view .video-view {
+  padding: 0;
+  background: #000;
+}
 .attachment-view .audio-stage {
   padding: 24px;
 }
@@ -3004,14 +3015,15 @@ dialog,
   height: 16px;
 }
 .player-bar button.player-play {
-  color: var(--accent);
+  /* lighter accent so the light theme's dark green stays readable on the black bar */
+  color: color-mix(in srgb, var(--accent) 65%, #fff);
 }
 .player-bar button.player-play svg {
   width: 19px;
   height: 19px;
 }
 .player-bar button.player-play:hover {
-  color: var(--accent);
+  color: color-mix(in srgb, var(--accent) 65%, #fff);
   background: color-mix(in srgb, var(--accent) 18%, transparent);
 }
 .player-bar .player-group > span:not(.player-clock) {
@@ -3284,4 +3296,63 @@ dialog,
   .video-big-play {
     animation: none;
   }
+}
+.player-skip {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+.player-bar .player-skip svg {
+  width: 20px;
+  height: 20px;
+}
+.player-skip b {
+  position: absolute;
+  font:
+    700 7px Geist,
+    sans-serif;
+  padding-top: 1px;
+}
+.player-speed {
+  position: relative;
+}
+.player-rate {
+  font: 600 11px var(--mono);
+}
+.player-bar button.player-speed-active {
+  color: #fff;
+  background: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.player-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 10px);
+  z-index: 5;
+  min-width: 120px;
+  padding: 4px;
+  border-radius: 10px;
+  background: #1f1f1f;
+  box-shadow: 0 10px 30px #0008;
+}
+.player-bar .player-menu button {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  height: 30px;
+  padding: 0 10px;
+  font:
+    12px Geist,
+    sans-serif;
+}
+.player-bar .player-menu button[aria-checked="true"] {
+  color: #fff;
+  font-weight: 600;
+  background: #ffffff14;
+}
+.player-menu button[aria-checked="true"] svg {
+  color: color-mix(in srgb, var(--accent) 55%, #fff);
+}
+.player-menu svg {
+  width: 14px;
+  height: 14px;
 }

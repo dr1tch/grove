@@ -28,12 +28,23 @@ function AttachmentEmbed({
   open: (path: string) => void;
 }) {
   const kind = kindOf(path);
+  const [size, setSize] = useState(0);
+  useEffect(() => {
+    let live = true;
+    void window.folio
+      .inspect(path)
+      .then((entry) => live && setSize(entry.size))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [path]);
   return (
-    <span className="attachment-embed">
+    <span className={`attachment-embed embed-${kind}`}>
       <button onClick={() => open(path)}>Open {path.split("/").pop()}</button>
       <span className="attachment-view">
         <Viewer
-          entry={{ path, name: path.split("/").pop()!, kind, size: 0, modified: 0 }}
+          entry={{ path, name: path.split("/").pop()!, kind, size, modified: 0 }}
           value=""
           onChange={() => {}}
           dark={dark}
