@@ -65,6 +65,9 @@ protocol.registerSchemesAsPrivileged([
 let win: BrowserWindow;
 let vault: Vault | null = null;
 let gitSync: GitSync | null = null;
+// Set by the renderer while a new note has unsaved text; closing then asks first.
+let draftsPending = false;
+let closeConfirmed = false;
 let state: AppState = {};
 const cacheAssets = new Map<string, string>();
 const previews = new Map<
@@ -435,6 +438,9 @@ function register() {
       await writeFile(choice.filePath, content, { flag: "wx" });
       return true;
     },
+    draftsPending: (pending: boolean) => {
+      draftsPending = pending === true;
+    },
     window: (action: string) => {
       if (action === "minimize") win.minimize();
       if (action === "maximize") {
@@ -442,6 +448,10 @@ function register() {
         else win.maximize();
       }
       if (action === "close") win.close();
+      if (action === "close-now") {
+        closeConfirmed = true;
+        win.close();
+      }
       if (action === "fullscreen") win.setFullScreen(!win.isFullScreen());
     },
     agent: (provider: "claude" | "codex", prompt: string, paths: string[]) =>
@@ -655,7 +665,12 @@ else {
       if (state.sync?.[gitSync?.root ?? ""]?.enabled && (!last || Date.now() - last > 60_000))
         void gitSync?.syncNow();
     });
-    win.on("close", () => {
+    win.on("close", (event) => {
+      if (draftsPending && !closeConfirmed) {
+        event.preventDefault();
+        win.webContents.send("folio:close-request", "");
+        return;
+      }
       state.bounds = win.getNormalBounds();
       state.maximized = win.isMaximized();
       void saveState();

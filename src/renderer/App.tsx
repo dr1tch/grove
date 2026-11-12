@@ -57,6 +57,7 @@ import { cleanState } from "../shared/state";
 import type { AppState, WorkspaceLayout, ViewState } from "../shared/types";
 import { conflictCopyPath, draftMoves } from "../shared/workspace";
 import { Appearance } from "./Appearance";
+import { SaveDraftDialog } from "./SaveDraftDialog";
 import type { SyncStatus } from "../shared/types";
 import { entryPath, suggestedName } from "../shared/tree";
 import { Tooltip } from "./Tooltip";
@@ -78,6 +79,24 @@ const defaults: Settings = {
 const editable = (path: string, kind = kindOf(path)) =>
   ["markdown", "text", "drawing", "unsupported"].includes(kind);
 const name = (path: string) => path.split("/").pop()?.replace(/\.md$/, "") || path;
+// A new note lives only in its tab until the user saves it; its name is its first heading.
+const DRAFT = "draft://";
+const isDraft = (path: string) => path.startsWith(DRAFT);
+const draftTitle = (value: string) => value.match(/^#\s+(.+)$/m)?.[1].trim() || "Untitled";
+const tabName = (t: { path: string; value: string }) =>
+  isDraft(t.path) ? draftTitle(t.value) : name(t.path);
+const savedTabs = (tabs: TabState[]) =>
+  tabs
+    .filter((t) => !isDraft(t.path))
+    .map(({ path, mode, pinned, preview }) => ({ path, mode, pinned, preview }));
+const savedLayout = (layout: WorkspaceLayout): WorkspaceLayout => ({
+  ...layout,
+  panes: layout.panes.map((p) => ({
+    ...p,
+    tabs: p.tabs.filter((t) => !isDraft(t)),
+    active: isDraft(p.active) ? p.tabs.find((t) => !isDraft(t)) || "" : p.active,
+  })),
+});
 function Icon({ path }: { path: string }) {
   return <FileIcon path={path} />;
 }
@@ -159,6 +178,37 @@ export function App() {
     x: number;
     y: number;
   } | null>(null);
+  const [draftSave, setDraftSave] = useState<{
+    path: string;
+    closing: boolean;
+    quitting?: boolean;
+  } | null>(null);
+  const quitting = useRef(false);
+  const dirtyDraft = tabs.find((t) => isDraft(t.path) && t.value !== t.doc.content)?.path;
+  useEffect(() => {
+    void window.folio.draftsPending(!!dirtyDraft).catch(() => {});
+  }, [dirtyDraft]);
+  // Quitting with unsaved new notes asks about each one, then closes the window.
+  useEffect(
+    () =>
+      window.folio.onCloseRequest(() => {
+        const path = live.current.tabs.find(
+          (t) => isDraft(t.path) && t.value !== t.doc.content,
+        )?.path;
+        if (!path) return void window.folio.window("close-now");
+        quitting.current = true;
+        setDraftSave({ path, closing: true, quitting: true });
+      }),
+    [],
+  );
+  useEffect(() => {
+    if (draftSave || !quitting.current) return;
+    if (dirtyDraft) setDraftSave({ path: dirtyDraft, closing: true, quitting: true });
+    else {
+      quitting.current = false;
+      void window.folio.window("close-now");
+    }
+  }, [draftSave, dirtyDraft]);
   const [fileAction, setFileAction] = useState<{
     type: "rename";
     path: string;
@@ -293,9 +343,10 @@ export function App() {
         paths = [];
       }
     }
-    const next = active
-      ? [active, ...paths.filter((path) => path !== active)].slice(0, 100)
-      : paths;
+    const next =
+      active && !isDraft(active)
+        ? [active, ...paths.filter((path) => path !== active)].slice(0, 100)
+        : paths;
     setRecent(next);
     try {
       localStorage.setItem(`folio:recent:${root}`, JSON.stringify(next));
@@ -565,11 +616,11 @@ export function App() {
         localStorage.setItem(
           `folio:workspace:${root}`,
           JSON.stringify({
-            layout,
+            layout: savedLayout(layout),
             expandedFolders: entries
               .filter((e) => e.kind === "folder" && !collapsedFolders.has(e.path))
               .map((e) => e.path),
-            tabs: tabs.map(({ path, mode, pinned, preview }) => ({ path, mode, pinned, preview })),
+            tabs: savedTabs(tabs),
           }),
         );
       } catch {
@@ -580,8 +631,8 @@ export function App() {
       persistLocal();
       void window.folio
         .persist({
-          tabs: tabs.map(({ path, mode, pinned, preview }) => ({ path, mode, pinned, preview })),
-          active,
+          tabs: savedTabs(tabs),
+          active: isDraft(active) ? undefined : active,
           settings,
           sidebar,
           sidebarWidth,
@@ -666,6 +717,7 @@ export function App() {
       setTabs((ts) =>
         ts.map((t) => {
           if (t.path !== active) return t;
+          if (isDraft(active)) return { ...t, value, preview: false, error: undefined };
           try {
             localStorage.setItem(
               `folio:draft:${root}:${active}`,
@@ -682,6 +734,10 @@ export function App() {
   );
   const save = useCallback(async (path: string, forceHash?: string) => {
     const current = live.current.tabs.find((t) => t.path === path);
+    if (current && isDraft(path)) {
+      setDraftSave({ path, closing: false });
+      return;
+    }
     if (
       !current ||
       !editable(path, current.kind) ||
@@ -739,6 +795,7 @@ export function App() {
     const dirty = tabs.filter(
       (t) =>
         editable(t.path, t.kind) &&
+        !isDraft(t.path) &&
         !t.readError &&
         t.value !== t.doc.content &&
         !t.disk &&
@@ -762,10 +819,15 @@ export function App() {
       }),
     );
   }
-  function close(path: string) {
+  function close(path: string, force = false) {
     const t = live.current.tabs.find((t) => t.path === path);
     if (!t || t.pinned) return;
+    if (isDraft(path) && !force && t.value !== t.doc.content) {
+      setDraftSave({ path, closing: true });
+      return;
+    }
     if (
+      !isDraft(path) &&
       t.value !== t.doc.content &&
       !confirm("This tab has unsaved edits. Close it? A recovery draft is kept.")
     )
@@ -787,7 +849,7 @@ export function App() {
       ),
     }));
     if (elsewhere) return;
-    closed.current.push(t);
+    if (!isDraft(path)) closed.current.push(t);
     setTabs((ts) => ts.filter((t) => t.path !== path));
     if (active === path)
       setActive(
@@ -823,7 +885,7 @@ export function App() {
     }
   }
   async function remove() {
-    if (!tab) return;
+    if (!tab || isDraft(tab.path)) return;
     try {
       if (tab.value !== tab.doc.content) await window.folio.checkpoint(tab.path, tab.value, root);
       await window.folio.trash(tab.path, tab.doc.hash, root);
@@ -912,8 +974,8 @@ export function App() {
   }
   const workspaceSnapshot = (): Omit<WorkspacePreset, "id" | "name"> => ({
     vaultRoot: root,
-    layout: cleanLayout(layout),
-    tabs: tabs.map(({ path, mode, pinned, preview }) => ({ path, mode, pinned, preview })),
+    layout: cleanLayout(savedLayout(layout)),
+    tabs: savedTabs(tabs),
     expandedFolders: entries
       .filter((e) => e.kind === "folder" && !collapsedFolders.has(e.path))
       .map((e) => e.path),
@@ -1141,7 +1203,41 @@ export function App() {
     }
   }
   function newNote(drawing = false) {
-    beginCreation("file", selectedFolder, drawing);
+    if (drawing || !root) {
+      beginCreation("file", selectedFolder, drawing);
+      return;
+    }
+    const path = `${DRAFT}${crypto.randomUUID()}.md`,
+      value = "# Untitled\n\n";
+    setTabs((ts) => [
+      ...ts,
+      {
+        id: crypto.randomUUID(),
+        path,
+        mode: "edit",
+        kind: "markdown",
+        doc: { path, content: value, hash: "", modified: Date.now() },
+        value,
+      },
+    ]);
+    setActive(path);
+    updateView(live.current.layout.activePaneId, path, { mode: "edit" });
+  }
+  async function saveDraft(fileName: string, parent: string) {
+    const request = draftSave;
+    const draft = request && live.current.tabs.find((t) => t.path === request.path);
+    if (!request || !draft) {
+      setDraftSave(null);
+      return;
+    }
+    const path = entryPath(parent, fileName, "file");
+    await window.folio.create(path, draft.value, root);
+    setDraftSave(null);
+    close(draft.path, true);
+    await refresh();
+    if (request.closing) return;
+    await open(path, true);
+    updateView(live.current.layout.activePaneId, path, { mode: "edit" });
   }
   function mode(mode: TabState["mode"]) {
     updateView(layout.activePaneId, active, { mode });
@@ -1197,7 +1293,7 @@ export function App() {
     return () => window.removeEventListener("keydown", handler);
   });
   async function history() {
-    if (!tab) return;
+    if (!tab || isDraft(tab.path)) return;
     try {
       const history = await window.folio.versions(tab.path);
       if (live.current.root !== root) return;
@@ -1494,7 +1590,7 @@ export function App() {
                   }}
                   className={`tab ${active === t.path ? "active" : ""} ${t.preview ? "temporary" : ""} ${t.pinned ? "pinned" : ""}`}
                   data-path={t.path}
-                  aria-label={t.pinned ? `${name(t.path)} · Pinned tab` : name(t.path)}
+                  aria-label={t.pinned ? `${tabName(t)} · Pinned tab` : tabName(t)}
                   onClick={() => {
                     setActive(t.path);
                     setSelectedFolder(t.path.split("/").slice(0, -1).join("/"));
@@ -1521,12 +1617,12 @@ export function App() {
                   }}
                 >
                   <Icon path={t.path} />
-                  {!t.pinned && <span>{name(t.path)}</span>}
+                  {!t.pinned && <span>{tabName(t)}</span>}
                   {t.pinned ? (
                     <Pin size={12} />
                   ) : (
                     <Button
-                      label={`Close ${name(t.path)}`}
+                      label={`Close ${tabName(t)}`}
                       className={`tab-close ${t.value !== t.doc.content ? "dirty" : ""} ${t.disk ? "conflicted" : ""}`}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -1633,10 +1729,16 @@ export function App() {
             <button onClick={() => void history()}>
               <History /> Version history <kbd>Ctrl Alt H</kbd>
             </button>
-            <button disabled={!tab} onClick={() => void window.folio.external(active, true)}>
+            <button
+              disabled={!tab || isDraft(active)}
+              onClick={() => void window.folio.external(active, true)}
+            >
               <FolderOpen /> Show in Files
             </button>
-            <button disabled={!tab} onClick={() => void window.folio.external(active)}>
+            <button
+              disabled={!tab || isDraft(active)}
+              onClick={() => void window.folio.external(active)}
+            >
               <ExternalLink /> Open externally
             </button>
             <button
@@ -1706,7 +1808,7 @@ export function App() {
                 }}
               >
                 <Icon path={t.path} />
-                {name(t.path)}
+                {tabName(t)}
                 {active === t.path && <Check className="push" />}
               </button>
             ))}
@@ -1857,6 +1959,26 @@ export function App() {
           </div>
         </>
       )}
+      {draftSave && (
+        <SaveDraftDialog
+          key={draftSave.path}
+          title={draftTitle(tabs.find((t) => t.path === draftSave.path)?.value || "")}
+          folders={entries.filter((e) => e.kind === "folder").map((e) => e.path)}
+          folder={selectedFolder}
+          closing={draftSave.closing}
+          vaultName={name(root)}
+          save={saveDraft}
+          discard={() => {
+            const path = draftSave.path;
+            setDraftSave(null);
+            close(path, true);
+          }}
+          cancel={() => {
+            quitting.current = false;
+            setDraftSave(null);
+          }}
+        />
+      )}
       {fileAction && (
         <div
           className="modal-backdrop"
@@ -1925,7 +2047,7 @@ export function App() {
         </div>
       )}
       <main className="document-panel">
-        {showLinks && root && (
+        {showLinks && root && !isDraft(active) && (
           <Backlinks
             key={root}
             root={root}
@@ -2159,6 +2281,10 @@ export function App() {
                     pane={pane}
                     tab={document}
                     entry={paneEntry}
+                    label={(path) => {
+                      const t = tabs.find((t) => t.path === path);
+                      return t ? tabName(t) : name(path);
+                    }}
                     settings={settings}
                     root={root}
                     dark={dark}

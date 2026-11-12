@@ -12,6 +12,10 @@ All notable changes to Grove. Versions match the GitHub release tags. The apt pa
 - Files over 50 MB are not synced and are listed in Settings > Sync. `.folio/`, `.trash/` and export recovery copies are ignored.
 - A folder that is already a git repository with uncommitted changes asks before its first commit. Sync never force-pushes or rewrites history, and turning it off leaves your files and git history as they are.
 
+### Changed
+
+- New note (Ctrl+N, Ctrl+T or the + button) opens an "Untitled" tab right away instead of asking for a file name in the sidebar. The first heading is the note's name. Nothing is written until you press Ctrl+S or close the tab; Grove then asks for the name and folder, with Save, Discard and Cancel. New drawings still ask for a name first. Closing Grove with an unsaved new note asks about it first.
+
 ## 0.4.7 (2026-11-12)
 
 ### Fixed

@@ -24,6 +24,7 @@ export function DocumentPane({
   open,
   ask,
   updateView,
+  label,
   notify,
 }: {
   pane: PaneState;
@@ -41,6 +42,7 @@ export function DocumentPane({
   open: (path: string) => void;
   ask: (selection: string) => void;
   updateView: (path: string, view: Partial<ViewState>) => void;
+  label: (path: string) => string;
   notify: (message: string) => void;
 }) {
   const host = useRef<HTMLElement>(null);
@@ -100,13 +102,13 @@ export function DocumentPane({
         <header className="pane-header">
           <nav className="pane-tabs" aria-label={`${pane.id} pane tabs`}>
             {pane.tabs.map((path) => (
-              <Tooltip key={path} text={path}>
+              <Tooltip key={path} text={label(path)}>
                 <button
                   className={path === pane.active ? "active" : ""}
                   onClick={() => activate(path)}
                 >
                   <FileIcon path={path} />
-                  <span>{path.split("/").pop()}</span>
+                  <span>{label(path)}</span>
                 </button>
               </Tooltip>
             ))}
@@ -142,7 +144,9 @@ export function DocumentPane({
               {view.mode !== "preview" && (
                 <Editor
                   attachmentTarget={
-                    entry.kind === "markdown" ? { path: tab.path, root } : undefined
+                    entry.kind === "markdown" && !tab.path.startsWith("draft://")
+                      ? { path: tab.path, root }
+                      : undefined
                   }
                   pendingDrop={pendingDrop}
                   onDropHandled={() => setPendingDrop(undefined)}

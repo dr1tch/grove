@@ -134,15 +134,13 @@ try {
   await page.getByRole("dialog", { name: "Rename", exact: true }).waitFor({ state: "hidden" });
   assert.equal(await page.locator(".tabs > .tab-add").count(), 1);
   await page.getByRole("button", { name: "New tab (Ctrl+T)", exact: true }).click();
-  await page.getByRole("textbox", { name: "New file name", exact: true }).fill("Preview note");
-  await page.getByRole("textbox", { name: "New file name", exact: true }).press("Enter");
-  await page.getByRole("heading", { name: "Preview note", exact: true }).waitFor();
-  assert.equal(await page.locator(".seg .active").filter({ hasText: "Preview" }).count(), 1);
-  assert.equal(await page.locator(".editor-wrap").count(), 0);
+  // The plus button opens an unsaved Untitled note ready for typing.
+  await page.locator(".tab.active", { hasText: "Untitled" }).waitFor();
+  await page.locator(".editor-wrap").first().waitFor();
   await page.screenshot({ path: "qa-artifacts/popups/file-icons-tabs.png" });
   assert.deepEqual(errors, []);
   console.log(
-    "PASS: file-type icons; tall diagram begins at top; double-click does not resize; clipboard matches source with copied feedback; diagram/settings/rename close outside; tab plus and new note preview. Fixture:",
+    "PASS: file-type icons; tall diagram begins at top; double-click does not resize; clipboard matches source with copied feedback; diagram/settings/rename close outside; tab plus opens an Untitled draft. Fixture:",
     temp,
   );
 } finally {

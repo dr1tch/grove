@@ -218,7 +218,8 @@ export interface FolioAPI {
   closePreview(): Promise<void>;
   external(path: string, reveal?: boolean): Promise<void>;
   saveCopy(content: string): Promise<boolean>;
-  window(action: "minimize" | "maximize" | "close" | "fullscreen"): Promise<void>;
+  window(action: "minimize" | "maximize" | "close" | "close-now" | "fullscreen"): Promise<void>;
+  draftsPending(pending: boolean): Promise<void>;
   agent(
     provider: "claude" | "codex",
     prompt: string,
@@ -235,6 +236,7 @@ export interface FolioAPI {
   onSync(cb: (status: SyncStatus) => void): () => void;
   onChange(cb: (path: string) => void): () => void;
   onOpen(cb: (path: string) => void): () => void;
+  onCloseRequest(cb: () => void): () => void;
 }
 export { kindOf } from "./files";
 

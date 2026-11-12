@@ -55,6 +55,7 @@ const methods = [
   "external",
   "saveCopy",
   "window",
+  "draftsPending",
   "agent",
   "chooseAttachments",
   "startSearch",
@@ -108,6 +109,7 @@ for (const method of methods)
 for (const [method, channel] of [
   ["onChange", "folio:change"],
   ["onOpen", "folio:open"],
+  ["onCloseRequest", "folio:close-request"],
 ])
   api[method] = (callback: (path: string) => void) => {
     const listener = (_event: unknown, path: string) => callback(path);
