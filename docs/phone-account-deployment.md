@@ -1,5 +1,13 @@
 # Activate Grove phone accounts
 
+## Current publication status, 2026-11-19
+
+The combined website is live at https://dr1tch.github.io/grove/, including /grove/app/ and /grove/app/mobile-captcha.html. The original APT signing key, signatures and package-index checksums verify. Main CI and Pages publication pass. Hosted production site URL and web/native callbacks are activated, with unrelated auth settings preserved. The instructions below are retained for repeat deployments.
+
+Email verification still needs dr1tch.github.io added to the existing Cloudflare Turnstile widget's Hostname Management. Live widget testing reports110200 (domain not authorized). CAPTCHA protection remains enabled. Native account sign-in is not yet verified; the user will test the phone after updating that hostname.
+
+The user explicitly deferred this Cloudflare step on2026-11-19. Resume it only when requested.
+
 The account-enabled phone build is prepared for the existing Grove Supabase project, qsnnexnjlxurmctljokh. It uses the same public URL and anon key as apps/web/.env.local. No client secret, service-role key or GitHub OAuth secret belongs in either client. The account-configured phone version0.1.1/build2 is installed. Account sign-in remains pending until the HTTPS pages and hosted redirects are activated and verified.
 
 ## Prepared behavior
@@ -20,6 +28,6 @@ Cloud storage now uploads ArrayBuffer bodies and reads downloaded blobs through 
 
 All250tests pass against local Supabase, with no skips. Focused CAPTCHA tests cover exact URL/origin/current-document checks, Android callbacks without frame metadata, stale attempts, malformed messages and expiry. Browser integration uses a real local Supabase account and cloud files with a simulated CAPTCHA widget plus the provider's local test token. It covers failed sign-in/retry, account creation, two-client saves, offline replay and concurrent edits preserving both versions. Mobile/web/shared-store types, scoped lint, production builds and code review pass. This does not prove a real hosted challenge or native credential persistence.
 
-The prepared combined site was served locally and checked at its landing, web, verification and GitHub callback routes. Existing APT metadata and package bytes are unchanged; GPG signatures and signed Release/package checksums verify. SHA256 for grove-site.tar.gz: 2aa9e4b6c2cb1cafd7b66099923a3066729e6f5b0fb7f4b315ebf155426fa27b. SHA256 for grove.apk: 3a04d768d977a1a7c839ce82fc8ee9769a0a61de5ffbb12733134beceaa9b46d. The APK signature verifies and matches installed0.1.0 for compatible updates; embedded configuration points to the hosted Grove service, with no QA endpoints.
+The combined site was checked locally and live at its landing, web, verification and GitHub callback routes. Live APT signatures, original signing key and signed package-index checksums verify. The local website archive is refreshed from the successful Pages artifact; current local artifact hashes are recorded in release/SHA256SUMS. The APK signature verifies and matches installed0.1.0 for compatible updates; embedded configuration points to the hosted Grove service, with no QA endpoints.
 
-Publication is authorized. The three public repository variables are configured, and the additive vault-shortcuts migration plus per-user mutation-lock migration are applied to hosted Grove. Web publication and auth redirect activation are still in progress. No personal account, repository or notes are used for QA. Signed store distribution, iOS, phone attachment viewers and real native account/sync checks remain separate gates.
+The three public repository variables are configured, and the additive vault-shortcuts migration plus per-user mutation-lock migration are applied to hosted Grove. Web publication and auth redirect activation are complete; Cloudflare hostname authorization remains pending. No personal account, repository or notes are used for QA. Signed store distribution, iOS, phone attachment viewers and real native account/sync checks remain separate gates.

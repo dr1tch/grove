@@ -2,6 +2,18 @@
 
 Read this first. It is everything you need to continue without the previous session.
 
+## Live publication, 2026-11-19
+
+The user explicitly approved commit, push, merge and deployment. Reviewed changes were committed as71a4364, merged into main asf2505a5 and pushed. CI passes. Publishing needed explicit apt-utils installation and a stable Ubuntu24.04 runner; follow-up commits1eb231f and769fede fix that environment. Pages run44523239223 succeeded. Landing at https://dr1tch.github.io/grove/ and web at /grove/app/ are live, with /grove/app/mobile-captcha.html returning200. The existing signed APT repo remains valid with original key AE7E42288F8A81985FC1E82A8C90951C8C0E6052 and public desktop package0.5.1. Hosted auth now declares the production site URL and web/native redirects; read-only diff confirms they match, with unrelated auth settings retained.
+
+Remaining activation issue: real Turnstile reports110200, domain not authorized. dr1tch.github.io must be added to the existing widget's Hostname Management. No Cloudflare admin connection is available; Chrome DevTools MCP cannot connect because another session owns its profile, so that browser was left untouched. Asked the user to add the exact hostname and retain existing ones, then report Saved. Do not claim email CAPTCHA or native sign-in is working yet. The user chose to test the phone themselves, and it is disconnected from ADB.
+
+The user explicitly deferred the Cloudflare hostname step with "lets keep it for later". Leave that setting unchanged until they resume it; publication itself is complete.
+
+The user's screenshot exposed source colors leaking into desktop Live Preview. Shared Editor now uses reading colors in Live Preview and retains source syntax colors in Edit. New computed-color assertions and the full isolated desktop Live Preview QA pass. Installed desktop remains0.5.7, matching the current local deb, while the latest public release is0.5.1. The new reading-color fix is NOT installed. Normal Grove/private notes were untouched. Temporary user workaround: choose Formatted instead of Live Preview in the top-right menu.
+
+Fresh local verification:250tests pass with local DB, deterministic parent/child and rename/create race checks pass, enhanced cross-tab sign-out/draft recovery QA passes, production web build passes. Full check has no errors and one preexisting intentional this-alias warning in the fetch-receiver test. Git changes are published on main. Final review approved the scoped fixes.
+
 ## Current continuation, 2026-11-17
 
 Publication was explicitly authorized, including commit/push/merge/deploy. Whole-branch review found a deterministic cloud path race and stale cross-tab account UI. New migration20261117144000 serializes all three mutations per user; scripts/cloud-path-race.py observed red before and green after. This and the pending additive user_vaults migration were applied to hosted Grove after dry-run. Three public GitHub repository variables are configured. Web Root now disposes the current bridge before identity-change reload, removing the draft leave guard; scripts/web-auth-tabs-qa.mjs deliberately dismisses dialogs and proves A data disappears, B cannot see A files, and scoped A recovery remains. The earlier reload-only variant failed the enhanced test. Root checks,250tests, desktop build/vault-race checks and types pass. Pages now also deploys after a successful Check on main, retaining manual/Release triggers. No commit/push/merge yet at this checkpoint.
