@@ -18,7 +18,7 @@
 ## Sign-in
 
 - Supabase Auth providers: GitHub, Google, email/password (with email confirmation and reset).
-- GitHub sign-in requests the `repo` scope and keeps the returned GitHub token in the browser, as today. Then the user picks a repository and branch. Caveat: OAuth `repo` scope covers all of the user's private repositories; pasted fine-grained tokens remain available as "Use a token instead".
+- Superseded by the approved [multi-vault plan](2026-11-13-grove-multi-vault.md): GitHub sign-in authenticates only the Grove account. Account connects repository access through an independent GitHub App with selected installations, state/PKCE and browser-session tokens. No Supabase identity linking or account deletion is needed. Pasted fine-grained tokens remain available as "Use a token instead".
 - Google and email users go straight to their cloud vault.
 - Tokens and sessions never enter service-worker caches, logs or the landing page origin.
 

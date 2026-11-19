@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { Dialog } from "./Dialog";
+import { useState } from "react";
 import type { Entry, WorkspacePreset } from "../shared/types";
 import { cleanPresets } from "../shared/workspaces";
 export function Workspaces({
@@ -14,7 +15,6 @@ export function Workspaces({
   apply: (preset: WorkspacePreset) => Promise<void>;
   close: () => void;
 }) {
-  const dialog = useRef<HTMLDialogElement>(null);
   const [presets, setPresets] = useState<WorkspacePreset[]>(() => {
       try {
         return cleanPresets(
@@ -30,9 +30,6 @@ export function Workspaces({
     [pending, setPending] = useState<WorkspacePreset>(),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
-  useEffect(() => {
-    dialog.current!.showModal();
-  }, []);
   const save = (next: WorkspacePreset[]) => {
     try {
       localStorage.setItem(`folio:presets:${root}`, JSON.stringify(next));
@@ -56,18 +53,7 @@ export function Workspaces({
       .finally(() => setBusy(false));
   };
   return (
-    <dialog
-      ref={dialog}
-      className="workspace-dialog"
-      aria-label="Workspaces"
-      onCancel={(e) => {
-        e.preventDefault();
-        if (!busy) close();
-      }}
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget && !busy) close();
-      }}
-    >
+    <Dialog className="workspace-dialog" label="Workspaces" close={close} dismissible={!busy}>
       <section>
         <header>
           <h2>Workspaces</h2>
@@ -167,6 +153,6 @@ export function Workspaces({
           </div>
         )}
       </section>
-    </dialog>
+    </Dialog>
   );
 }

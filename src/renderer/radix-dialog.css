@@ -1,0 +1,70 @@
+/* Preserve native-dialog geometry while Radix owns modality and focus. */
+[data-radix-dialog-content].radix-dialog-content {
+  position: fixed;
+  inset: 50% auto auto 50%;
+  transform: translate(-50%, -50%);
+  z-index: 21;
+  margin: 0;
+  -webkit-app-region: no-drag;
+}
+.radix-dialog-title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+[data-radix-dialog-content].radix-dialog-content.settings-dialog {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+}
+[data-radix-dialog-content].radix-dialog-content.quick-switcher {
+  top: 12vh;
+  transform: translateX(-50%);
+  margin: 0;
+}
+[data-radix-dialog-content].radix-dialog-content.diagram-expanded {
+  display: flex;
+  flex-direction: column;
+  inset: 24px;
+  transform: none;
+  margin: 0;
+}
+.radix-dialog-backdrop {
+  background: #0006;
+  backdrop-filter: none;
+}
+.radix-dialog-backdrop:has(+ .settings-dialog) {
+  background: #0007;
+  backdrop-filter: blur(3px);
+}
+.radix-dialog-backdrop:has(+ .diagram-expanded) {
+  background: #0009;
+  backdrop-filter: blur(2px);
+}
+.radix-dialog-backdrop:has(+ .code-block-dialog) {
+  background: #0008;
+}
+.radix-dialog-backdrop:has(+ .recovery-dialog) {
+  background: #0007;
+}
+.radix-dialog-backdrop:has(+ .vault-insert-dialog) {
+  background: rgb(0 0 0 / 35%);
+}
+.radix-dialog-backdrop:has(+ .modal:not(.web-account-dialog):not(.rich-link-dialog)) {
+  background: #0005;
+  backdrop-filter: blur(3px);
+}
+
+[data-radix-dialog-content].radix-dialog-content:is(
+    .quick-switcher,
+    .recovery-dialog,
+    .workspace-dialog
+  ) {
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+}

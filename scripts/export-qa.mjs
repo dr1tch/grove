@@ -10,10 +10,10 @@ const temp = await mkdtemp(join(tmpdir(), "grove-panes-")),
   profile = join(temp, "profile");
 await mkdir(vault);
 await mkdir(profile);
-await writeFile(join(profile, "state.json"), "{}");
+await writeFile(join(profile, "state.json"), JSON.stringify({ vault }));
 await writeFile(join(vault, "Note.md"), "# Notes\n\n" + "A paragraph for reading.\n\n".repeat(100));
 await writeFile(join(vault, "Other.md"), "# Other\n");
-await copyFile("/home/dr1tch/Documents/261032848.pdf", join(vault, "Receipt.pdf"));
+await copyFile(new URL("./fixtures/sample.pdf", import.meta.url), join(vault, "Receipt.pdf"));
 await writeFile(
   join(vault, "image.svg"),
   '<svg xmlns="http://www.w3.org/2000/svg" width="240" height="120"><rect width="240" height="120" fill="#218c66"/></svg>',
@@ -67,7 +67,7 @@ let app;
 try {
   app = await electron.launch({
     ...(executable ? { executablePath: executable } : {}),
-    args: ["--ozone-platform=x11", ...(executable ? [] : ["."]), `--user-data-dir=${profile}`],
+    args: [...(executable ? [] : ["."]), "--ozone-platform=x11", `--user-data-dir=${profile}`],
   });
   app.on("window", (child) => {
     child.on("pageerror", (error) => console.log("Export pageerror:", String(error)));
@@ -78,7 +78,7 @@ try {
   let page = await app.firstWindow();
   page.setDefaultTimeout(15000);
   if (executable) await page.locator(".tabs").waitFor();
-  else await page.locator('.file-row[data-path="package.json"]').waitFor();
+  else await page.locator(".app").waitFor();
   await app.evaluate(
     ({ app }, root) =>
       app.emit("second-instance", {}, app.isPackaged ? ["folio", root] : ["electron", "app", root]),
@@ -90,11 +90,20 @@ try {
     pdfPath = join(temp, "Export.pdf");
   const prepare = async (format, target) => {
     await app.evaluate(({ dialog }, target) => {
-      dialog.showSaveDialog = async () => ({ canceled: false, filePath: target });
+      dialog.showSaveDialog = async () => ({
+        canceled: false,
+        filePath: target,
+      });
     }, target);
     await page.getByRole("button", { name: "Document menu", exact: true }).click();
-    await page.getByRole("button", { name: "Export note…", exact: true }).click();
-    await page.getByRole("combobox", { name: "Export format" }).selectOption(format);
+    await page.getByRole("menuitem", { name: "Export note…", exact: true }).click();
+    await page.getByRole("combobox", { name: "Export format" }).click();
+    await page
+      .getByRole("option", {
+        name: format === "html" ? "Self-contained HTML" : "PDF",
+        exact: true,
+      })
+      .click();
     await page.getByRole("button", { name: "Prepare export", exact: true }).click();
 
     await page
@@ -126,7 +135,9 @@ try {
   assert.ok(html.includes("<svg"));
   assert.ok(!html.includes("<script"));
   await prepare("pdf", pdfPath);
-  const extracted = execFileSync("pdftotext", [pdfPath, "-"], { encoding: "utf8" });
+  const extracted = execFileSync("pdftotext", [pdfPath, "-"], {
+    encoding: "utf8",
+  });
   assert.ok(
     extracted.includes("Start") && extracted.includes("Finish"),
     "PDF preserves visible flowchart labels",
@@ -147,7 +158,9 @@ try {
   const offline = await opened;
   const protocol = await offline.context().newCDPSession(offline);
   await protocol.send("Network.enable");
-  await protocol.send("Network.setBlockedURLs", { urls: ["http://*", "https://*"] });
+  await protocol.send("Network.setBlockedURLs", {
+    urls: ["http://*", "https://*"],
+  });
   const network = [];
   offline.on("request", (request) => {
     if (/^https?:/.test(request.url())) network.push(request.url());
@@ -165,7 +178,10 @@ try {
   );
   assert.equal(await offline.evaluate(() => typeof window.folio), "undefined");
   assert.deepEqual(network, []);
-  await offline.screenshot({ path: join(temp, "offline-export.png"), fullPage: true });
+  await offline.screenshot({
+    path: join(temp, "offline-export.png"),
+    fullPage: true,
+  });
   await offline.close();
   assert.ok((await readFile(pdfPath)).subarray(0, 5).toString() === "%PDF-");
   assert.equal(await readFile(join(vault, "Note.md"), "utf8"), note);

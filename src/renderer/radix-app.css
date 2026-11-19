@@ -1,0 +1,44 @@
+.menu.grove-dropdown {
+  position: relative;
+  inset: auto;
+  max-height: min(70vh, var(--radix-dropdown-menu-content-available-height));
+  overflow: auto;
+}
+.menu [data-highlighted] {
+  background: var(--hover);
+  outline: none;
+}
+.menu [data-disabled] {
+  pointer-events: none;
+  opacity: 0.45;
+}
+
+.tab > .app-tab-trigger {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  gap: 8px;
+  border-radius: 0;
+  justify-content: flex-start;
+  background: transparent;
+  -webkit-app-region: no-drag;
+}
+.app-tab-trigger > svg {
+  flex: none;
+  stroke-width: 1.75;
+}
+.app-tab-trigger > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tab.temporary .app-tab-trigger > span {
+  font-style: italic;
+}
+.tab.pinned > .app-tab-trigger {
+  justify-content: center;
+}
+.tab.pinned .app-tab-trigger > svg:not(:first-child) {
+  display: none;
+}

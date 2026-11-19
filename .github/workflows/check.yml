@@ -15,6 +15,7 @@ jobs:
           . "$HOME/.config/vite-plus/env"
           vp install --frozen-lockfile
           node node_modules/electron/install.js
+          pnpm --filter @grove/mobile editor
       - name: Check, test and build
         run: |
           . "$HOME/.config/vite-plus/env"
@@ -23,3 +24,5 @@ jobs:
           python3 scripts/vault-races.py
           vp run build
           vp run '@grove/landing#build'
+          pnpm --filter @grove/mobile typecheck
+          pnpm --filter @grove/mobile build

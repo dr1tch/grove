@@ -12,6 +12,8 @@
 
 ## Status and order
 
+Continuation on2026-11-16: browser/accounts and landing are implemented locally. The user selected native phone implementation next. Tasks6/7 and the Markdown/insertion/conflict portion of8 now have source in apps/mobile; native attachment viewers and device interaction checks remain unfinished. Follow the current implementation notes in apps/mobile/README.md and 2026-11-16-mobile-app.md before treating the original unchecked list as unstarted work. No signing, store submission or publishing is authorized.
+
 Desktop toolbar implementation precedes this plan. It includes formatting, history, normal save/conflict handling and Insert from vault. Its checks are `vp test --run`, `vp check`, `vp run build`, `scripts/markdown-toolbar-qa.mjs` and `scripts/draft-note-qa.mjs`. Do not repeat that implementation as a new client task.
 
 Execute workspace foundations, shared online sync, durable offline sync and browser support first. Then deliver the native phone shell, editor and previews, followed by the landing site and integrated delivery checks. Tasks 1, 2, 3 and 9 are implemented locally. Tasks 4 through 8 and 10 remain unstarted. Landing was explicitly chosen next after foundation; upcoming copy keeps it independent of client delivery. Do not stage, commit, push, tag, install over the user's running app or deploy as part of executing routine steps without the corresponding user request.

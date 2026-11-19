@@ -78,7 +78,7 @@ export class CloudStore implements RemoteStore {
       throw new GitHubError("rejected", "File exceeds the 50 MiB sync limit.");
     const { data, error } = await this.db.storage.from(BUCKET).download(`${this.userId}/${hash}`);
     if (error) throw fail(error as Failure);
-    const bytes = new Uint8Array(await data.arrayBuffer());
+    const bytes = new Uint8Array(await new Response(data).arrayBuffer());
     if (bytes.length !== size || (await blobSha(bytes)) !== hash)
       throw new GitHubError("other", "Grove cloud returned damaged file contents.");
     return bytes;
@@ -89,7 +89,7 @@ export class CloudStore implements RemoteStore {
     const hash = await blobSha(bytes);
     const { error } = await this.db.storage
       .from(BUCKET)
-      .upload(`${this.userId}/${hash}`, new Blob([bytes as BlobPart]), {
+      .upload(`${this.userId}/${hash}`, bytes.slice().buffer, {
         upsert: false,
         contentType: "application/octet-stream",
       });

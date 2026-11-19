@@ -1,10 +1,10 @@
 # Grove phone, web and landing page
 
-Status: workspace foundation, shared GitHub vault/session, browser IndexedDB cache and static landing implemented locally, 2026-11-12. Phone and browser UI remain unstarted. Landing publishing remains separate. This updates the phone/browser portion of [sync and plugins](grove-sync-plugins.md). The desktop toolbar shipped in 0.5.1. No client or deployment work is authorized by merely reading this spec.
+Status: workspace foundation, shared GitHub vault/session, browser app/accounts/offline cache and static landing are implemented locally. Native phone core implementation started on2026-11-16: Files, Markdown reading/editing, draft/save/recovery, formatting/insertion, SQLite/SecureStore and shared sync. Phone attachment viewers and real-device verification remain unfinished. See [mobile notes](../../apps/mobile/README.md). Publishing remains separate. This updates the phone/browser portion of [sync and plugins](grove-sync-plugins.md). The desktop toolbar shipped in0.5.1. No deployment is authorized by merely reading this spec.
 
 ## Product and architecture
 
-Grove keeps notes, drawings and attachments in a plain folder. A private GitHub repository connects the desktop, browser and phone. There is no Grove-hosted application server or mandatory Grove account.
+Grove keeps desktop notes, drawings and attachments in a plain folder. A private GitHub repository connects clients. The later approved web account work also supports optional Supabase accounts and a cloud vault. Repository access uses a separate GitHub App connection; saved repository/branch shortcuts follow the Grove account, while connection tokens stay in the browser session. Desktop Git sync remains independent. See [GitHub App setup](../github-app-setup.md).
 
 Use pnpm workspaces. Keep the Electron app, its package identity `folio`, installed profiles, resources and QA entry points at the repository root. Add `apps/mobile` for an Expo/React Native Android and iOS app, `apps/web` for the existing React renderer with a browser bridge, and `apps/landing` for a static React/Vite marketing site. Share pure domain code in `packages/core` and the browser/phone GitHub vault implementation in `packages/github-vault`. This is an implementation choice that preserves the working desktop app while giving each new app its own dependencies and commands.
 

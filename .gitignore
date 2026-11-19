@@ -5,6 +5,14 @@ release/
 .superpowers/
 qa-artifacts/
 .folio/
+.serena/
+graphify-out
 
 # Local Supabase settings for the web build
 apps/web/.env.local
+apps/mobile/.env.local
+apps/mobile/.expo/
+apps/mobile/android/
+apps/mobile/ios/
+apps/mobile/.editor-build/
+apps/mobile/editor/generated.ts

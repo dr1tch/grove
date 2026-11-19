@@ -163,6 +163,7 @@ site_url = "http://127.0.0.1:3071/grove/app/"
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
 # 3071 is the devport-assigned port; 5173 and 4173 are Vite's dev and preview defaults.
 additional_redirect_urls = [
+  "grove://auth/callback",
   "http://127.0.0.1:3071/grove/app/**",
   "http://localhost:3071/grove/app/**",
   "http://127.0.0.1:5173/grove/app/**",
@@ -425,3 +426,6 @@ enabled = true
 # formatted with uppercase keywords, indent 2, max width 180, trailing commas,
 # and column/key alignment. Set to "null" to emit raw, unformatted SQL.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":180,\"commaStyle\":\"trailing\"}"
+
+[functions.github-app]
+verify_jwt = false

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { KeyRound, Mail } from "lucide-react";
+import { KeyRound } from "lucide-react";
+import { Separator } from "radix-ui";
+import { CheckField } from "../../../src/renderer/Controls";
 import {
   accounts,
   captchaSiteKey,
@@ -13,7 +15,7 @@ import {
 import type { CloudCredentials, Credentials, GitHubCredentials, GitHubRepository } from "./auth";
 import mark from "../../../resources/brand/grove-mark.svg";
 
-type View = "choose" | "email" | "token" | "reset" | "new-password";
+type View = "choose" | "token" | "reset" | "new-password";
 const message = (reason: unknown, fallback: string) =>
   reason instanceof Error && reason.message ? reason.message : fallback;
 
@@ -24,18 +26,26 @@ export function SignIn({
   github,
   cloud,
   recovering = false,
+  repositories,
+  cancelPicker,
+  installationURL,
+  refreshRepositories,
 }: {
   connect: (credentials: Credentials) => Promise<void>;
   previous?: Credentials;
   initialError?: string;
-  /** A GitHub token from a just-finished GitHub sign-in: show the repository picker. */
+  /** A browser token from repository authorization: show the repository picker. */
   github?: string;
   /** The signed-in Grove account, offered as a cloud vault next to repositories. */
   cloud?: CloudCredentials;
   recovering?: boolean;
+  repositories?: GitHubRepository[];
+  cancelPicker?: () => void;
+  installationURL?: string;
+  refreshRepositories?: () => Promise<void>;
 }) {
   const [view, setView] = useState<View>(
-    recovering ? "new-password" : accounts && previous?.kind !== "github" ? "choose" : "token",
+    recovering ? "new-password" : accounts ? "choose" : "token",
   );
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(initialError),
@@ -74,10 +84,32 @@ export function SignIn({
       <Frame title="Choose your vault" lead="Pick the private repository that holds your notes.">
         <RepositoryPicker
           token={github}
+          supplied={repositories}
           cloud={cloud}
           busy={busy}
           choose={(credentials) => run(() => connect(credentials), "Could not open the vault")}
         />
+        {installationURL && (
+          <p className="web-help">
+            <a href={installationURL} target="_blank" rel="noreferrer">
+              Choose repositories for Grove on GitHub
+            </a>
+          </p>
+        )}
+        {refreshRepositories && (
+          <button
+            className="web-link"
+            disabled={busy}
+            onClick={() => run(refreshRepositories, "Could not refresh repositories")}
+          >
+            Refresh repositories
+          </button>
+        )}
+        {cancelPicker && (
+          <button className="web-link" disabled={busy} onClick={cancelPicker}>
+            Back to notes
+          </button>
+        )}
         {status}
       </Frame>
     );
@@ -87,53 +119,44 @@ export function SignIn({
       lead="Notes stay in their original format, synced with GitHub or Grove cloud."
     >
       {view === "choose" && (
-        <div className="web-providers">
-          <button
-            className="primary"
-            disabled={busy}
-            onClick={() => run(() => signInWith("github"), "GitHub sign-in failed")}
-          >
-            <GitHubLogo />
-            Continue with GitHub
-          </button>
-          <button
-            disabled={busy}
-            onClick={() => run(() => signInWith("google"), "Google sign-in failed")}
-          >
-            <GoogleLogo />
-            Continue with Google
-          </button>
-          <button disabled={busy} onClick={() => setView("email")}>
-            <Mail size={18} aria-hidden="true" />
-            Continue with email
-          </button>
-          {status}
-          <p className="web-help">
-            GitHub keeps notes in a repository you choose. Google and email use Grove cloud.
-          </p>
-          <button className="web-link" onClick={() => setView("token")}>
+        <>
+          <div className="web-providers">
+            <button
+              className="primary"
+              disabled={busy}
+              onClick={() => run(() => signInWith("github"), "GitHub sign-in failed")}
+            >
+              <GitHubLogo />
+              Continue with GitHub
+            </button>
+          </div>
+          <Separator.Root className="web-auth-separator" />
+          <EmailForm
+            busy={busy}
+            waiting={waiting}
+            check={check}
+            status={status}
+            submit={(email, password, create) =>
+              run(async () => {
+                const session = await signInWithEmail(
+                  email,
+                  password,
+                  create,
+                  captcha || undefined,
+                );
+                // With email confirmation on, sign-up returns no session until the link is opened.
+                if (!session) setNotice("Check your email to confirm your account, then sign in.");
+                else await connect({ kind: "cloud", userId: session.user.id, email: email.trim() });
+              }, "Could not sign in")
+            }
+            forgot={() => setView("reset")}
+          />
+          <p className="web-help">Sign in to Grove, then add GitHub repositories from Account.</p>
+          <button className="web-link" disabled={busy} onClick={() => setView("token")}>
             <KeyRound size={14} aria-hidden="true" />
             Use a GitHub token instead
           </button>
-        </div>
-      )}
-      {view === "email" && (
-        <EmailForm
-          busy={busy}
-          waiting={waiting}
-          check={check}
-          status={status}
-          submit={(email, password, create) =>
-            run(async () => {
-              const session = await signInWithEmail(email, password, create, captcha || undefined);
-              // With email confirmation on, sign-up returns no session until the link is opened.
-              if (!session) setNotice("Check your email to confirm your account, then sign in.");
-              else await connect({ kind: "cloud", userId: session.user.id, email: email.trim() });
-            }, "Could not sign in")
-          }
-          forgot={() => setView("reset")}
-          back={() => setView("choose")}
-        />
+        </>
       )}
       {view === "reset" && (
         <ResetForm
@@ -147,7 +170,7 @@ export function SignIn({
               setNotice("If an account exists for that address, a reset link is on its way.");
             }, "Could not send the reset email")
           }
-          back={() => setView("email")}
+          back={() => setView("choose")}
         />
       )}
       {view === "new-password" && (
@@ -204,7 +227,6 @@ function EmailForm({
   status,
   submit,
   forgot,
-  back,
 }: {
   busy: boolean;
   waiting: boolean;
@@ -212,7 +234,6 @@ function EmailForm({
   status: ReactNode;
   submit: (email: string, password: string, create: boolean) => void;
   forgot: () => void;
-  back: () => void;
 }) {
   const [create, setCreate] = useState(false),
     [email, setEmail] = useState(""),
@@ -260,9 +281,6 @@ function EmailForm({
           Forgot password?
         </button>
       )}
-      <button type="button" className="web-link" onClick={back}>
-        Other ways to sign in
-      </button>
     </form>
   );
 }
@@ -352,27 +370,30 @@ function NewPasswordForm({
 
 function RepositoryPicker({
   token,
+  supplied,
   cloud,
   busy,
   choose,
 }: {
   token: string;
+  supplied?: GitHubRepository[];
   cloud?: CloudCredentials;
   busy: boolean;
   choose: (credentials: Credentials) => void;
 }) {
   const [repositories, setRepositories] = useState<GitHubRepository[]>(),
     [filter, setFilter] = useState(""),
+    [branch, setBranch] = useState(""),
     [error, setError] = useState("");
   useEffect(() => {
     let live = true;
-    githubRepositories(token)
+    (supplied ? Promise.resolve(supplied) : githubRepositories(token))
       .then((list) => live && setRepositories(list))
       .catch((reason) => live && setError(message(reason, "Could not list repositories")));
     return () => {
       live = false;
     };
-  }, [token]);
+  }, [token, supplied]);
   const shown = (repositories ?? []).filter((repository) =>
     `${repository.owner}/${repository.repo}`.toLowerCase().includes(filter.trim().toLowerCase()),
   );
@@ -385,6 +406,15 @@ function RepositoryPicker({
           autoComplete="off"
           onChange={(event) => setFilter(event.target.value)}
           disabled={busy}
+        />
+      </label>
+      <label>
+        Branch (optional)
+        <input
+          value={branch}
+          onChange={(event) => setBranch(event.target.value)}
+          disabled={busy}
+          placeholder="Repository default"
         />
       </label>
       {error && (
@@ -401,7 +431,11 @@ function RepositoryPicker({
               onClick={() =>
                 choose({
                   kind: "github",
-                  ref: repository,
+                  ref: {
+                    owner: repository.owner,
+                    repo: repository.repo,
+                    branch: branch.trim() || repository.branch,
+                  },
                   token,
                   remember: true,
                 })
@@ -514,12 +548,7 @@ function TokenForm({
         Create a fine-grained token
       </a>
       <label className="web-checkbox">
-        <input
-          type="checkbox"
-          checked={remember}
-          onChange={(event) => setRemember(event.target.checked)}
-          disabled={busy}
-        />
+        <CheckField checked={remember} onCheckedChange={setRemember} disabled={busy} />
         Remember this browser
       </label>
       <p className="web-help">
@@ -548,29 +577,6 @@ export function GitHubLogo() {
     </svg>
   );
 }
-function GoogleLogo() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
-      <path
-        fill="#FFC107"
-        d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.6-.4-3.9z"
-      />
-      <path
-        fill="#FF3D00"
-        d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"
-      />
-      <path
-        fill="#4CAF50"
-        d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"
-      />
-      <path
-        fill="#1976D2"
-        d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.6-.4-3.9z"
-      />
-    </svg>
-  );
-}
-
 type Turnstile = {
   render(host: HTMLElement, options: Record<string, unknown>): string;
   reset(id: string): void;

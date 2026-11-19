@@ -24,7 +24,13 @@ const image = "assets/Café #[1] 🌱.png";
 await copyFile("build/icon.png", join(vault, image));
 await writeFile(
   join(vault, "assets", "Sketch.excalidraw"),
-  JSON.stringify({ type: "excalidraw", version: 2, elements: [], appState: {}, files: {} }),
+  JSON.stringify({
+    type: "excalidraw",
+    version: 2,
+    elements: [],
+    appState: {},
+    files: {},
+  }),
 );
 let app;
 try {
@@ -68,7 +74,8 @@ try {
   assert.equal(await text(), "**hello**");
   assert.equal(await page.locator(".cm-focused").count(), 1, "toolbar returns focus to editor");
   await reset("Title");
-  await toolbar.getByLabel("Heading").selectOption("h2");
+  await toolbar.getByLabel("Heading").click();
+  await page.getByRole("option", { name: "Heading 2", exact: true }).click();
   assert.equal(await text(), "## Title");
   await reset("one\ntwo");
   await tool("Bulleted list").click();
@@ -85,17 +92,27 @@ try {
   assert.equal(await text(), "``a`b``");
   await reset("words");
   await tool("Link").click();
-  await page.keyboard.insertText("https://example.com");
-  assert.equal(await text(), "[words](https://example.com)", "link destination is selected");
+  const link = page.getByRole("dialog", { name: "Edit link", exact: true });
+  await link.getByLabel("Link address", { exact: true }).fill("https://example.com");
+  await link.getByRole("button", { name: "Apply", exact: true }).click();
+  assert.equal(
+    await text(),
+    "[words](<https://example.com>)",
+    "link dialog preserves the selected text",
+  );
 
   // Inserting into a new draft must not assume where its first Save will put it.
   await reset("# Insert test\n\n");
   await page.keyboard.press("Control+End");
   await tool("Insert from vault").click();
-  let dialog = page.getByRole("dialog", { name: "Insert from vault", exact: true });
+  let dialog = page.getByRole("dialog", {
+    name: "Insert from vault",
+    exact: true,
+  });
   await dialog.getByLabel("Search vault files").fill("Café");
   await dialog.getByText(image, { exact: true }).click();
-  await dialog.getByLabel("Insert as").selectOption("embed");
+  await dialog.getByLabel("Insert as").click();
+  await page.getByRole("option", { name: "Embed", exact: true }).click();
   await dialog.getByRole("button", { name: "Insert", exact: true }).click();
   await dialog.waitFor({ state: "detached" });
   assert.ok(
@@ -104,27 +121,25 @@ try {
   );
   await page.keyboard.press("Control+s");
   const save = page.getByRole("dialog", { name: "Save note", exact: true });
-  await save.getByLabel("Folder").selectOption("notes");
+  await save.getByLabel("Folder").click();
+  await page.getByRole("option", { name: "notes", exact: true }).click();
   await save.getByRole("button", { name: "Save", exact: true }).click();
   await page.locator('.tab.active[data-path="notes/Insert test.md"]').waitFor();
   assert.ok((await readFile(join(vault, "notes", "Insert test.md"), "utf8")).includes("</assets/"));
-  await page
-    .locator(".title-actions")
-    .getByRole("button", { name: "Preview", exact: true })
-    .click();
-  assert.equal(await page.getByRole("toolbar", { name: "Markdown formatting" }).count(), 0);
+  await page.locator(".title-actions").getByRole("radio", { name: "Preview", exact: true }).click();
+  assert.equal(await page.getByRole("toolbar", { name: "Markdown formatting" }).count(), 1);
   await page.waitForFunction(() =>
     [...document.querySelectorAll(".md img")].some(
       (image) => image.complete && image.naturalWidth > 0,
     ),
   );
-  await page.locator(".title-actions").getByRole("button", { name: "Edit", exact: true }).click();
+  await page.locator(".title-actions").getByRole("radio", { name: "Edit", exact: true }).click();
   editor = page.locator(".cm-content").first();
   await editor.click();
   await page.keyboard.press("Control+End");
   await tool("Insert from vault").click();
   dialog = page.getByRole("dialog", { name: "Insert from vault", exact: true });
-  await dialog.getByRole("button", { name: "Mermaid", exact: true }).click();
+  await dialog.getByRole("radio", { name: "Mermaid", exact: true }).click();
   await dialog.getByText("notes/Charts.md", { exact: true }).click();
   await dialog.getByLabel("Mermaid block").waitFor();
   await page.screenshot({ path: join(screenshots, "insert-mermaid.png") });
@@ -143,8 +158,8 @@ try {
   await dialog.getByText("assets/Sketch.excalidraw", { exact: true }).click();
   await dialog.getByRole("button", { name: "Insert", exact: true }).click();
   await dialog.waitFor({ state: "detached" });
-  await page.locator(".title-actions").getByRole("button", { name: "Split", exact: true }).click();
-  assert.equal(await page.getByRole("toolbar", { name: "Markdown formatting" }).count(), 1);
+  await page.locator(".title-actions").getByRole("radio", { name: "Split", exact: true }).click();
+  assert.equal(await page.getByRole("toolbar", { name: "Markdown formatting" }).count(), 2);
   await page.locator('.drawing-embed[data-export-ready="true"]').waitFor();
   assert.ok(!(await page.locator(".drawing-caption").innerText()).includes("unavailable"));
   await page.screenshot({ path: join(screenshots, "split-light.png") });
@@ -154,16 +169,16 @@ try {
   // Code editing must not receive Markdown commands or a Markdown toolbar.
   await page.locator('.file-tree .file-row[data-path="api.ts"]').dblclick();
   await page.locator('.tab.active[data-path="api.ts"]').waitFor();
-  await page.locator(".title-actions").getByRole("button", { name: "Edit", exact: true }).click();
+  await page.locator(".title-actions").getByRole("radio", { name: "Edit", exact: true }).click();
   assert.equal(await page.getByRole("toolbar", { name: "Markdown formatting" }).count(), 0);
   await page.locator('.file-tree .file-row[data-path="notes/Insert test.md"]').dblclick();
   await page.locator('.tab.active[data-path="notes/Insert test.md"]').waitFor();
-  await page.locator(".title-actions").getByRole("button", { name: "Edit", exact: true }).click();
+  await page.locator(".title-actions").getByRole("radio", { name: "Edit", exact: true }).click();
   await page.getByRole("button", { name: "Open beside", exact: true }).click();
   const left = page.locator('.document-pane[data-pane="primary"]');
   const right = page.locator('.document-pane[data-pane="secondary"]');
-  await right.getByRole("button", { name: "Edit", exact: true }).click();
-  await left.getByRole("button", { name: "Edit", exact: true }).click();
+  await right.getByRole("radio", { name: "Edit", exact: true }).click();
+  await left.getByRole("radio", { name: "Edit", exact: true }).click();
   editor = left.locator(".cm-content");
   await reset("shared");
   await left.getByRole("button", { name: "Bold", exact: true }).click();

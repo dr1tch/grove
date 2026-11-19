@@ -10,19 +10,19 @@ const temp = await mkdtemp(join(tmpdir(), "grove-draft-")),
   profile = join(temp, "profile");
 await mkdir(join(vault, "notes"), { recursive: true });
 await mkdir(profile);
-await writeFile(join(profile, "state.json"), "{}");
+await writeFile(join(profile, "state.json"), JSON.stringify({ vault }));
 await writeFile(join(vault, "notes", "Existing.md"), "# Existing\n");
 const files = async () =>
   (await readdir(vault, { recursive: true })).filter((f) => f.endsWith(".md")).sort();
 let app;
 try {
   app = await electron.launch({
-    args: ["--ozone-platform=x11", ".", `--user-data-dir=${profile}`],
+    args: [".", "--ozone-platform=x11", `--user-data-dir=${profile}`],
     env: process.env,
   });
   const page = await app.firstWindow();
   page.setDefaultTimeout(15000);
-  await page.locator('.file-row[data-path="package.json"]').waitFor();
+  await page.locator(".app").waitFor();
   await app.evaluate(
     ({ app }, root) => app.emit("second-instance", {}, ["electron", "app", root]),
     vault,
@@ -52,7 +52,8 @@ try {
   await page.keyboard.press("Control+s");
   const dialog = page.getByRole("dialog", { name: "Save note" });
   assert.equal(await dialog.getByLabel("Name").inputValue(), "Meeting notes");
-  await dialog.getByLabel("Folder").selectOption("notes");
+  await dialog.getByLabel("Folder").click();
+  await page.getByRole("option", { name: "notes", exact: true }).click();
   await dialog.getByText("Saves as notes/Meeting notes.md").waitFor();
   await page.screenshot({ path: join(temp, "draft-save.png") });
   await dialog.getByRole("button", { name: "Save" }).click();

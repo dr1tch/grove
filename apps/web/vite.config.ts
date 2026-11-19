@@ -33,5 +33,10 @@ export default defineConfig(({ mode }) => ({
     tailwindcss(),
   ],
   server: { host: "127.0.0.1", strictPort: true },
-  build: { outDir: "../../out/web", emptyOutDir: true, chunkSizeWarningLimit: 1800 },
+  build: {
+    rolldownOptions: { input: ["index.html", "github-callback.html", "mobile-captcha.html"] },
+    outDir: "../../out/web",
+    emptyOutDir: true,
+    chunkSizeWarningLimit: 1800,
+  },
 }));

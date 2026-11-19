@@ -5,9 +5,17 @@ import { VaultStore } from "@grove/github-vault/store";
 import { VaultSession } from "@grove/github-vault/sync";
 import { GitHubError, rootOf } from "@grove/github-vault/types";
 import type { RepoRef } from "@grove/github-vault/types";
+import { GitHubAccess } from "./github-app";
 import { BrowserCache } from "./cache";
 
-export type GitHubCredentials = { kind: "github"; ref: RepoRef; token: string; remember: boolean };
+export type GitHubCredentials = {
+  kind: "github";
+  ref: RepoRef;
+  token: string;
+  remember: boolean;
+  connectionId?: string;
+  accountId?: string;
+};
 export type CloudCredentials = { kind: "cloud"; userId: string; email: string };
 export type Credentials = GitHubCredentials | CloudCredentials;
 const key = "grove:web:credentials";
@@ -19,24 +27,36 @@ const url = import.meta.env.VITE_SUPABASE_URL as string | undefined,
 export const accounts: SupabaseClient | undefined =
   url && anon
     ? createClient(url, anon, {
-        auth: { flowType: "pkce", storageKey: "grove:web:account", detectSessionInUrl: true },
+        auth: {
+          flowType: "pkce",
+          storageKey: "grove:web:account",
+          detectSessionInUrl: !location.pathname.endsWith("/github-callback.html"),
+        },
       })
     : undefined;
-// Read before Supabase rewrites the URL: a password-reset link returns with ?reset=1, and
-// connecting GitHub from Account returns with ?link=github.
 const returned = new URLSearchParams(location.search);
 export const resettingPassword = returned.has("reset");
-export const connectingGitHub = returned.get("link") === "github";
-// Supabase reports a failed OAuth sign-in or link in the URL (query for PKCE, hash otherwise).
+export const githubCallback = location.pathname.endsWith("/github-callback.html");
+export const callbackURL = new URL(
+  "github-callback.html",
+  new URL(import.meta.env.BASE_URL, location.origin),
+).href;
 const failure = new URLSearchParams(location.hash.slice(1)).get("error_code")
   ? new URLSearchParams(location.hash.slice(1))
   : returned;
 export const returnedError = failure.get("error_code")
-  ? failure.get("error_code") === "identity_already_exists"
-    ? "This GitHub account already has its own Grove sign-in, so it can't be linked here. Sign out and use Continue with GitHub, or delete that other Grove account first."
-    : failure.get("error_description") || "Sign-in with the provider failed. Try again."
+  ? "Provider sign-in failed. Your saved vaults are unchanged. Try signing in again."
   : "";
 const home = () => new URL(import.meta.env.BASE_URL, location.origin).href;
+export const githubAccess =
+  accounts && import.meta.env.VITE_GITHUB_APP_CLIENT_ID && import.meta.env.VITE_GITHUB_APP_SLUG
+    ? new GitHubAccess(
+        accounts,
+        import.meta.env.VITE_GITHUB_APP_CLIENT_ID,
+        import.meta.env.VITE_GITHUB_APP_SLUG,
+        callbackURL,
+      )
+    : undefined;
 
 export function storedCredentials(): Credentials | undefined {
   try {
@@ -54,6 +74,9 @@ export function storedCredentials(): Credentials | undefined {
       ref: { owner: value.ref.owner, repo: value.ref.repo, branch: value.ref.branch },
       token: value.token,
       remember: value.remember,
+      ...(typeof value.connectionId === "string" && typeof value.accountId === "string"
+        ? { connectionId: value.connectionId, accountId: value.accountId }
+        : {}),
     };
   } catch {
     return;
@@ -65,28 +88,22 @@ export function forgetCredentials(): void {
 }
 export function rememberCredentials(value: Credentials): void {
   forgetCredentials();
-  const persistent = value.kind === "cloud" || value.remember;
-  (persistent ? localStorage : sessionStorage).setItem(key, JSON.stringify(value));
+  const persistent = value.kind === "cloud" || (!value.connectionId && value.remember);
+  const stored =
+    value.kind === "github" && value.connectionId
+      ? { ...value, token: "app", remember: false }
+      : value;
+  (persistent ? localStorage : sessionStorage).setItem(key, JSON.stringify(stored));
 }
 export function cloudCredentials(session: Session): CloudCredentials {
   return { kind: "cloud", userId: session.user.id, email: session.user.email ?? "" };
 }
-// The GitHub token from a GitHub sign-in or link, present only right after the OAuth redirect.
-export function githubToken(session: Session | null): string | undefined {
-  return session?.user.app_metadata.provider === "github" || connectingGitHub
-    ? (session?.provider_token ?? undefined)
-    : undefined;
-}
-// Adds GitHub to the signed-in Grove account, or re-authorizes it when already linked, then
-// returns to the repository picker. Needs "Allow manual linking" on the Supabase project.
 export async function connectGitHub(): Promise<void> {
-  const { data } = await accounts!.auth.getUser();
-  const options = { redirectTo: `${home()}?link=github`, scopes: "repo" };
-  const linked = data.user?.identities?.some((identity) => identity.provider === "github");
-  const { error } = linked
-    ? await accounts!.auth.signInWithOAuth({ provider: "github", options })
-    : await accounts!.auth.linkIdentity({ provider: "github", options });
-  if (error) throw error;
+  if (!githubAccess)
+    throw new Error(
+      "GitHub App connections are not available yet. You can use a GitHub token in this browser instead.",
+    );
+  await githubAccess.start();
 }
 export async function accountSession(): Promise<Session | null> {
   return accounts ? (await accounts.auth.getSession()).data.session : null;
@@ -95,8 +112,8 @@ export async function accountSession(): Promise<Session | null> {
 export async function signInWith(provider: "github" | "google"): Promise<void> {
   const { error } = await accounts!.auth.signInWithOAuth({
     provider,
-    // `repo` lets Grove read and write the private repository the user picks next.
-    options: { redirectTo: home(), ...(provider === "github" ? { scopes: "repo" } : {}) },
+    // Grove sign-in is separate from repository permissions.
+    options: { redirectTo: home() },
   });
   if (error) throw error;
 }
@@ -165,10 +182,41 @@ export async function githubRepositories(token: string): Promise<GitHubRepositor
 }
 
 export async function openVault(credentials: Credentials, resume = false) {
+  let transport: typeof fetch | undefined;
+  if (credentials.kind === "github" && credentials.connectionId) {
+    if (!githubAccess || !credentials.accountId)
+      throw new Error("Connect GitHub again on this browser.");
+    const user = (await accounts!.auth.getSession()).data.session?.user.id;
+    if (user !== credentials.accountId)
+      throw new Error("This GitHub connection belongs to another Grove account.");
+    const connectionId = credentials.connectionId,
+      accountId = credentials.accountId;
+    const getToken = async () => {
+      if ((await accounts!.auth.getSession()).data.session?.user.id !== accountId)
+        throw new Error("Sign in to the same Grove account.");
+      return githubAccess!.token(accountId, connectionId);
+    };
+    credentials = { ...credentials, token: await getToken() };
+    transport = async (input, init) => {
+      const target = new URL(
+        typeof input === "string" ? input : input instanceof URL ? input.href : input.url,
+      );
+      if (target.origin !== "https://api.github.com") throw new Error("Invalid GitHub API origin");
+      const headers = new Headers(init?.headers);
+      headers.set("Authorization", `Bearer ${await getToken()}`);
+      return fetch(input, {
+        ...init,
+        headers,
+        redirect: "error",
+        credentials: "omit",
+        cache: "no-store",
+      });
+    };
+  }
   const store =
     credentials.kind === "cloud"
       ? new CloudStore(accounts!, credentials.userId, "browser")
-      : new VaultStore(credentials.ref, credentials.token, { device: "browser" });
+      : new VaultStore(credentials.ref, credentials.token, { device: "browser", fetch: transport });
   const cache = new BrowserCache(credentials.kind === "cloud" ? store.root : credentials.ref);
   try {
     try {

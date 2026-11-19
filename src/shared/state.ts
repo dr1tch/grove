@@ -39,7 +39,8 @@ export function cleanState(value: unknown): AppState {
           : 14,
       readingWidth: [0, 600, 680, 780, 960, 1200].includes(Number(settings.readingWidth))
         ? Number(settings.readingWidth)
-        : 680,
+        : 0,
+      previewStyle: settings.previewStyle === "live" ? "live" : "formatted",
     } as Settings;
   const b = v.bounds as Record<string, unknown> | undefined;
   if (

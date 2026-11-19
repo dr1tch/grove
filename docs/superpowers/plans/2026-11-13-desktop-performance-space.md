@@ -1,0 +1,9 @@
+# Desktop performance audit and document space
+
+User request: check additional desktop performance issues and make Edit/Preview use available space. Use the current checkout, preserve all prior unstaged work, and do not install or publish.
+
+1. Audit installed0.5.3 and the current build with isolated temporary vaults. Measure typing, scrolling, startup, sidebar scaling and cold/warm backlinks. Inspect editor/closed-tab cache retention. Report measured issues separately from static risks. Performance fixes beyond the sizing change remain recommendations for this audit.
+2. Make full width the default appearance, preserve explicitly saved reading widths, remove the source editor's hard-coded940px cap, and ensure the rich editor's editable surface fills its viewport height. Keep fixed-width appearance options and existing fit/zoom controls. Files: App.tsx, Appearance.tsx, Editor.tsx, styles.css, shared/state.ts and its default/preservation checks. Use the existing document-view QA for dimensions and fixed-width override behavior.
+3. Verify desktop sizing in Edit/Preview/Split, small/large windows, fixed width and fit, and run relevant types/builds/checks. Review this scoped change, save an evidence-based audit report, and update the handoff. No normal profile or private notes may be used.
+
+Completed locally: audit saved in docs/desktop-performance-audit.md; sizing fix verified on desktop/web, including fixed-width short-note regression RED170.55px→GREEN760px. Review finding fixed; other reviewed sizing changes had no findings.185 tests pass,10 local DB cases skip, root/web types/builds and scoped checks pass. Generated graphify outputs triggered unrelated whole-repo formatting errors and were not edited. Existing installed0.5.3 and normal profile remain untouched. Performance optimizations are not implemented in this pass.

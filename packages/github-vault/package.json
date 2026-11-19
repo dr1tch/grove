@@ -8,6 +8,7 @@
     "./github": "./src/github.ts",
     "./store": "./src/store.ts",
     "./cache": "./src/cache.ts",
+    "./browser-cache": "./src/browser-cache.ts",
     "./sync": "./src/sync.ts",
     "./remote": "./src/remote.ts",
     "./cloud": "./src/cloud.ts"

@@ -88,6 +88,19 @@ export class Vault {
     this.known.set(path, doc);
     return doc;
   }
+  async readMany(
+    paths: string[],
+  ): Promise<{ path: string; document?: Document; error?: string }[]> {
+    if (!Array.isArray(paths) || paths.length > 32) throw new Error("Invalid read batch");
+    for (const path of paths) this.validate(path);
+    if (!paths.length) return [];
+    const records = await this.io<{ path: string; document?: Document; error?: string }[]>({
+      action: "readMany",
+      paths,
+    });
+    for (const record of records) if (record.document) this.known.set(record.path, record.document);
+    return records;
+  }
   async list(): Promise<Entry[]> {
     const entries = await this.io<(Omit<Entry, "kind"> & { kind?: "folder" })[]>({
       action: "list",

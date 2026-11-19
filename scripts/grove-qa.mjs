@@ -48,15 +48,19 @@ try {
   const settings = page.getByRole("dialog", { name: "Settings", exact: true });
   await settings.waitFor();
   const bounds = await settings.boundingBox();
-  const viewport = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }));
+  const viewport = await page.evaluate(() => ({
+    width: innerWidth,
+    height: innerHeight,
+  }));
   assert.ok(Math.abs(bounds.x + bounds.width / 2 - viewport.width / 2) < 2);
   assert.ok(await page.locator(".settings-navigation").isVisible());
-  await page.getByRole("button", { name: "Editor", exact: true }).click();
+  await page.getByRole("tab", { name: "Editor", exact: true }).click();
   await page.getByLabel("Editor font size", { exact: true }).fill("16");
-  await page.getByRole("button", { name: "Appearance", exact: true }).click();
-  await page.getByLabel("Reading width", { exact: true }).selectOption("960");
+  await page.getByRole("tab", { name: "Appearance", exact: true }).click();
+  await page.getByLabel("Reading width", { exact: true }).click();
+  await page.getByRole("option", { name: "Extra wide · 960", exact: true }).click();
   await page.screenshot({ path: "qa-artifacts/grove/settings-light.png" });
-  await page.getByRole("button", { name: "Dark", exact: true }).click();
+  await page.getByRole("radio", { name: "Dark", exact: true }).click();
   await page.screenshot({ path: "qa-artifacts/grove/settings-dark.png" });
   await page.keyboard.press("Escape");
   await settings.waitFor({ state: "hidden" });
@@ -76,7 +80,10 @@ try {
   assert.ok((await pinned.boundingBox()).width <= 44);
   await page.screenshot({ path: "qa-artifacts/grove/pinned-tab.png" });
   await page.getByRole("button", { name: "New file in notes", exact: true }).click();
-  const fileName = page.getByRole("textbox", { name: "New file name", exact: true });
+  const fileName = page.getByRole("textbox", {
+    name: "New file name",
+    exact: true,
+  });
   await fileName.fill("Inline note");
   await fileName.press("Enter");
   await page.locator('.file-tree .file-row[data-path="notes/Inline note.md"]').waitFor();
@@ -87,11 +94,14 @@ try {
   assert.ok(!(await readdir(join(vault, "notes"))).includes("Cancelled.md"));
   await page.getByRole("button", { name: "Folder actions for docs", exact: true }).click();
   await page.getByRole("menuitem", { name: "New folder", exact: true }).click();
-  const folderName = page.getByRole("textbox", { name: "New folder name", exact: true });
+  const folderName = page.getByRole("textbox", {
+    name: "New folder name",
+    exact: true,
+  });
   await folderName.fill("Guides");
   await page.screenshot({ path: "qa-artifacts/grove/inline-folder.png" });
   await folderName.press("Enter");
-  await page.locator(".folder-node summary").filter({ hasText: "Guides" }).waitFor();
+  await page.locator(".folder-node .folder-trigger").filter({ hasText: "Guides" }).waitFor();
   await access(join(vault, "docs/Guides"));
   await page.getByRole("button", { name: "New file in docs/Guides", exact: true }).click();
   await fileName.fill("First guide");

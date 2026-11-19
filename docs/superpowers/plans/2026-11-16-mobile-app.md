@@ -1,0 +1,27 @@
+# Native phone implementation
+
+## Account activation follow-up, 2026-11-17
+
+The user approved configuring phone accounts and testing a separate synced vault. Continue in the current checkout, leaving all changes unstaged. Existing native PKCE, SecureStore and CloudStore own authentication/session/data behavior. Add a narrow CAPTCHA-only hosted page to the existing web build and a separate native WebView, never the note editor. Reuse existing public Supabase configuration. CAPTCHA messages must validate source URL, attempt and bounded token; every email attempt consumes/resets the token. Do not weaken hosted CAPTCHA or expose passwords/session tokens to the CAPTCHA page. Missing deployment must remain a visible setup gate. Preserve GitHub Pages APT files when preparing deployment. Desktop native currently uses Git; cloud round trips can be verified with the existing web renderer, while a real desktop Git round trip needs a separate authorized test repository/token.
+
+1. Add failing tests for trusted CAPTCHA URL/message validation, implement native/browser CAPTCHA surfaces and the hosted widget page, then wire email/create attempts and reset behavior.
+2. Wire ignored phone public settings, add the exact native OAuth callback to the local setup/configuration, and prepare one static site artifact containing the existing signed APT repository plus landing/web assets. Do not publish or overwrite APT independently.
+3. Verify types, focused tests, real local account/cloud two-client/offline/conflict flows and built CAPTCHA page behavior. Build the configured Android APK, record native/hosted gaps and obtain a final code review. Keep hosted activation and any needed user sign-in explicit.
+
+The user selected starting the React Native app from the approved designs. Execute the existing client spec with the subagent development workflow. Keep the current checkout and all existing changes. No commit, publish, store submission or signing is authorized.
+
+1. Add an Expo SDK58 workspace with SDK-compatible native dependencies, branding and a tab-free native Files/Search/Recent shell.
+2. Reuse VaultSession and its durable cache contract. Add native SQLite and SecureStore adapters, retaining exact queue revision/CAS invariants. Reuse the existing IndexedDB cache for the browser preview, with memory-only credentials there.
+3. Add a bounded bundled CodeMirror/Markdown surface, native formatting toolbar, safe first-save/draft recovery, existing-content insertion and conflict choices. The bridge validates document identity/revision and never receives credentials. Native shell owns navigation and safe areas.
+4. Wire configured account sign-in and GitHub repository access, offline saves, reconnect and sign-out without losing pending work. Include an explicitly labelled local sample vault for safe design/interaction QA.
+5. Run cache/bridge/draft tests, workspace checks, native bundle exports and browser interaction/visual QA. Record real-device limitations honestly. No Android device/emulator or iOS build host is currently available.
+
+Ruling: preserve the working desktop/web apps and extract their existing browser cache only because both web and mobile preview need it. Native UI uses React Native controls because Radix primitives target the DOM. The approved gallery and prose spec govern appearance; no phone document tabs are introduced.
+
+Implemented: Expo SDK58 shell, native SQLite cache/recovery, secure chunked credentials, system-browser PKCE and native crypto, shared vault sync, Files/search/Recent, one-document Markdown editor/reader, formatting/history, first-save/leave/discard, reviewed Mermaid/file-reference insertion and explicit sample vault. Browser credentials are memory-only. Existing desktop/web behavior remains separate.
+
+Validation:244tests pass with the existing local database enabled. Shared browser cache transaction/restart QA passes after extraction. Full phone-preview QA passes exact rapid typing, repeated type/backspace, source formatting/history, save/cancel/discard, reload recovery and insertion. Fake repository QA passes two saves during a delayed upload, offline save/sign-out/reconnect replay, and rejection of new invalid credentials before cached content is shown. Code review found and fixed credential cleanup reporting, delayed startup restoration, follow-up sync and source-acknowledgement races. Android/iOS/browser JavaScript bundle exports pass. Native SDK dependency compatibility, root/mobile/web types and scoped lint/formatting pass.
+
+Remaining delivery gates: PDF/image/media/drawing viewers; native CAPTCHA integration for protected email auth; real GitHub OAuth and native SecureStore/SQLite/WebView/keyboard/IME/rotation/process-death checks; signed binaries. No Android device/emulator or iOS host was available. These gaps prevent claiming a released or fully verified phone client.
+
+Visual final check: ~/parity/grove-phone-2026-11-16/run3/report.md resolves22baseline findings with0open/0new in captured Files/editor/save/insert scope. Fixes include explicit Read/Edit and Save, source gutter/syntax, draft-status strip, exact vector branding, Save folder/path/action order, compact grouped Insert rows, reviewed source/link choices and inline actions. Native44px touch targets and contextual wording are documented differences from generated pixels. Final source review and browser integration also verify selection locking during delayed Mermaid verification. Full QA record: qa-artifacts/mobile/report.md.

@@ -1,6 +1,6 @@
 {
   "name": "folio",
-  "version": "0.5.1",
+  "version": "0.5.7",
   "private": true,
   "description": "A home for your notes, drawings and ideas",
   "homepage": "https://github.com/dr1tch/grove",
@@ -32,7 +32,17 @@
     "@fontsource/jetbrains-mono": "latest",
     "@fontsource/source-serif-4": "latest",
     "@lezer/highlight": "latest",
+    "@radix-ui/react-menu": "2.2.1",
     "@tailwindcss/vite": "^4.0.0",
+    "@tiptap/core": "3.34.0",
+    "@tiptap/extension-link": "3.34.0",
+    "@tiptap/extension-table": "3.34.0",
+    "@tiptap/extension-task-item": "3.34.0",
+    "@tiptap/extension-task-list": "3.34.0",
+    "@tiptap/markdown": "3.34.0",
+    "@tiptap/pm": "3.34.0",
+    "@tiptap/react": "3.34.0",
+    "@tiptap/starter-kit": "3.34.0",
     "@types/mdast": "4.0.4",
     "@types/node": "latest",
     "@types/react": "latest",
@@ -44,9 +54,12 @@
     "electron-vite": "^6.0.0",
     "lucide-react": "latest",
     "lz-string": "^1.5.0",
+    "mdast-util-gfm": "3.1.0",
     "mermaid": "latest",
+    "micromark-extension-gfm": "3.0.0",
     "playwright": "latest",
     "prettier": "^3.10.0",
+    "radix-ui": "1.8.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-markdown": "latest",
@@ -62,6 +75,7 @@
   "build": {
     "appId": "app.folio.desktop",
     "productName": "Grove",
+    "artifactName": "grove-${version}-${arch}.${ext}",
     "directories": {
       "output": "release"
     },
@@ -107,6 +121,7 @@
       "resources/**/*"
     ],
     "deb": {
+      "artifactName": "grove.deb",
       "depends": [
         "libgtk-3-0",
         "libnotify4",

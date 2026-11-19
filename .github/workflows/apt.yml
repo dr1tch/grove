@@ -6,7 +6,7 @@ name: APT repository
 on:
   # runs on the default branch, which the github-pages environment allows (tag refs are not)
   workflow_run:
-    workflows: [Release]
+    workflows: [Release, Check]
     types: [completed]
   workflow_dispatch:
 
@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   publish:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && (github.event.workflow_run.name == 'Release' || github.event.workflow_run.head_branch == 'main'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -29,6 +29,28 @@ jobs:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Vite+
+        run: curl -fsSL https://vite.plus | VP_NODE_MANAGER=no bash
+      - name: Build Grove website and account pages
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+          VITE_TURNSTILE_SITE_KEY: ${{ vars.VITE_TURNSTILE_SITE_KEY }}
+        run: |
+          test -n "$VITE_SUPABASE_URL"
+          test -n "$VITE_SUPABASE_ANON_KEY"
+          test -n "$VITE_TURNSTILE_SITE_KEY"
+          . "$HOME/.config/vite-plus/env"
+          vp install --frozen-lockfile
+          vp run '@grove/landing#build'
+          vp run '@grove/web#build'
+          mkdir -p site/app
+          cp -a out/landing/. site/
+          cp -a out/web/. site/app/
       - name: Download the latest release's .deb
         env:
           GH_TOKEN: ${{ github.token }}

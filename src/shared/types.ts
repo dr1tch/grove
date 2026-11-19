@@ -43,6 +43,8 @@ export type { SyncState, SyncStatus } from "@grove/core/types";
 export type SyncConnectRequest = { url?: string; createName?: string; confirmDirty?: boolean };
 export type ViewState = {
   mode: TabState["mode"];
+  zoom?: number;
+  fitWidth?: boolean;
   selection?: { anchor: number; head: number };
   editorScroll?: number;
   previewScroll?: number;

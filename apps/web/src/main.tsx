@@ -10,16 +10,20 @@ import "@fontsource/jetbrains-mono/latin-500.css";
 import "@fontsource/jetbrains-mono/latin-700.css";
 import "../../../src/renderer/styles.css";
 import "./web.css";
-import { GitHubLogo, SignIn } from "./SignIn";
-import { Cloud, LogOut, X } from "lucide-react";
+import { SignIn } from "./SignIn";
+import { AccountDialog } from "./AccountDialog";
+import { forgetVault, savedVaults, saveVault } from "./vaults";
+import type { SavedVault } from "./vaults";
+import type { GitHubRepository } from "./auth";
+import type { RepoRef } from "@grove/github-vault/types";
 import {
   accounts,
   cloudCredentials,
   connectGitHub,
-  connectingGitHub,
+  githubCallback,
+  githubAccess,
   returnedError,
   forgetCredentials,
-  githubToken,
   openVault,
   rememberCredentials,
   resettingPassword,
@@ -46,35 +50,114 @@ function Root() {
     [pending, setPending] = useState(0),
     [github, setGithub] = useState<string>(),
     [cloud, setCloud] = useState<CloudCredentials>(),
-    [recovering, setRecovering] = useState(resettingPassword);
+    [recovering, setRecovering] = useState(resettingPassword),
+    [vaults, setVaults] = useState<SavedVault[]>(),
+    [busy, setBusy] = useState(false),
+    [repositories, setRepositories] = useState<GitHubRepository[]>();
+  const picker = useRef<{ userId: string; connectionId: string } | undefined>(undefined);
+  const activating = useRef(false);
   const previous = useRef(storedCredentials());
   const mounted = useRef(true);
   const live = useRef(active);
   live.current = active;
+  useEffect(() => {
+    if (!accounts) return;
+    let owner: string | null | undefined;
+    const { data } = accounts.auth.onAuthStateChange((_event, session) => {
+      const next = session?.user.id ?? null;
+      if (owner !== undefined && next !== owner) {
+        const current = live.current;
+        current?.bridge.dispose();
+        void current?.vault.cache.close().catch(() => {});
+        live.current = undefined;
+        setActive(undefined);
+        if (owner) githubAccess?.clear(owner);
+        forgetCredentials();
+        // Reload retires in-flight vault opens; pagehide preserves account-scoped drafts.
+        location.reload();
+      }
+      owner = next;
+    });
+    return () => data.subscription.unsubscribe();
+  }, []);
+  const loadVaults = async (userId = cloud?.userId) => {
+    if (!accounts || !userId) return;
+    setVaults(await savedVaults(accounts, userId));
+  };
   const activate = async (credentials: Credentials, resume = false) => {
-    const vault = await openVault(credentials, resume);
-    if (!mounted.current) {
-      vault.session.dispose();
-      await vault.cache.close();
-      return;
-    }
+    if (activating.current) throw new Error("Another vault is opening. Please wait.");
+    const old = live.current;
+    if (old && !old.bridge.canSignOut())
+      throw new Error("Save or discard your new draft before switching vaults.");
+    activating.current = true;
+    setBusy(true);
+    let candidate: Awaited<ReturnType<typeof openVault>> | undefined;
     try {
+      if (credentials.kind === "github" && picker.current)
+        credentials = {
+          ...credentials,
+          connectionId: picker.current.connectionId,
+          accountId: picker.current.userId,
+          remember: false,
+        };
+      candidate = await openVault(credentials, resume);
+      if (!mounted.current) {
+        candidate.session.dispose();
+        await candidate.cache.close();
+        return;
+      }
       if (!resume) rememberCredentials(credentials);
-    } catch {
-      vault.session.dispose();
-      await vault.cache.close();
-      throw new Error(
-        "Browser could not store the connection. Check storage access before retrying.",
-      );
+      // Keep the old vault alive until the target opens successfully and credentials persist.
+      old?.bridge.dispose();
+      await old?.vault.cache.close().catch(() => {});
+      const bridge = createWebBridge(candidate.session);
+      const next = { credentials, vault: candidate, bridge };
+      window.folio = bridge;
+      live.current = next;
+      setActive(next);
+      candidate = undefined;
+      setGithub(undefined);
+      setRepositories(undefined);
+      picker.current = undefined;
+      setRecovering(false);
+      setError("");
+      setAccount(false);
+      if (credentials.kind === "cloud") setCloud(credentials);
+      bridge.start();
+      if (credentials.kind === "github" && accounts) {
+        const user = (await accounts.auth.getSession()).data.session?.user;
+        if (user) {
+          try {
+            await saveVault(accounts, user.id, credentials.ref);
+            await loadVaults(user.id);
+          } catch (reason) {
+            setError(reason instanceof Error ? reason.message : "Could not save vault shortcut");
+            setAccount(true);
+          }
+        }
+      }
+    } catch (reason) {
+      candidate?.session.dispose();
+      await candidate?.cache.close().catch(() => {});
+      throw reason;
+    } finally {
+      activating.current = false;
+      setBusy(false);
     }
-    setGithub(undefined);
-    setRecovering(false);
-    if (credentials.kind === "cloud") setCloud(credentials);
-    const bridge = createWebBridge(vault.session);
-    window.folio = bridge;
-    setActive({ credentials, vault, bridge });
-    setError("");
-    bridge.start();
+  };
+  const showRepositories = async (userId: string, connectionId: string) => {
+    if (!githubAccess) throw new Error("Connect GitHub again on this browser.");
+    setBusy(true);
+    try {
+      const token = await githubAccess.token(userId, connectionId);
+      const list = await githubAccess.repositories(userId, connectionId);
+      picker.current = { userId, connectionId };
+      setRepositories(list);
+      setGithub(token);
+      setAccount(false);
+    } finally {
+      setBusy(false);
+    }
   };
   useEffect(() => {
     let cancelled = false;
@@ -84,23 +167,47 @@ function Root() {
         // Waits for Supabase to finish an OAuth or email-link redirect, if one is in the URL.
         const session = accounts ? (await accounts.auth.getSession()).data.session : null;
         if (cancelled) return;
-        const token = githubToken(session),
-          stored = previous.current;
-        if (session) setCloud(cloudCredentials(session));
-        if (connectingGitHub || returnedError)
-          history.replaceState(null, "", import.meta.env.BASE_URL);
-        if (token && !(stored?.kind === "github" && stored.token === token)) {
-          setGithub(token);
-          return;
+        const stored = previous.current;
+        let connectionError = "";
+        if (session) {
+          setCloud(cloudCredentials(session));
+          void loadVaults(session.user.id).catch(() => {});
         }
-        if (stored?.kind === "cloud" && session && session.user.id !== stored.userId)
+        if (githubCallback) {
+          try {
+            if (!githubAccess || !session)
+              throw new Error("Sign in to Grove before connecting GitHub.");
+            const result = await githubAccess.finish(new URL(location.href));
+            await showRepositories(result.userId, result.connection.id);
+            return;
+          } catch (reason) {
+            connectionError = reason instanceof Error ? reason.message : "GitHub connection failed";
+          } finally {
+            history.replaceState(null, "", import.meta.env.BASE_URL);
+          }
+        }
+        if (
+          stored?.kind === "github" &&
+          stored.accountId &&
+          stored.accountId !== session?.user.id
+        ) {
+          forgetCredentials();
+          if (session) await activate(cloudCredentials(session));
+        } else if (stored?.kind === "cloud" && session && session.user.id !== stored.userId)
           await activate(cloudCredentials(session));
-        else if (stored) await activate(stored, true);
-        else if (session) await activate(cloudCredentials(session));
-        // A failed GitHub link returns here still signed in: show why in the Account dialog.
-        if (returnedError) {
-          setError(returnedError);
-          setAccount(Boolean(stored || session));
+        else if (stored?.kind === "cloud" && !session) {
+          forgetCredentials();
+        } else if (stored) {
+          try {
+            await activate(stored, true);
+          } catch (reason) {
+            if (!connectionError || !session) throw reason;
+            await activate(cloudCredentials(session));
+          }
+        } else if (session) await activate(cloudCredentials(session));
+        if (connectionError || returnedError) {
+          setError(connectionError || returnedError);
+          setAccount(Boolean(live.current));
         }
       } catch (reason) {
         // Only a rejected token is forgotten; rate limits, outages and storage errors keep it.
@@ -124,26 +231,50 @@ function Root() {
       void live.current?.vault.cache.close();
     };
   }, []);
-  // Opens another vault for the same person; queued edits stay in this browser's cache.
-  const switchTo = async (credentials: Credentials) => {
-    if (!active) return;
-    if (!active.bridge.canSignOut()) {
-      setError("Save or discard your new draft before switching vaults.");
-      return;
-    }
-    active.bridge.dispose();
-    await active.vault.cache.close();
-    window.folio = createWebBridge();
-    setActive(undefined);
-    setAccount(false);
-    setLoading(true);
+  const perform = async (task: () => Promise<void>) => {
+    setError("");
+    setBusy(true);
     try {
-      await activate(credentials);
+      await task();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Could not open that vault");
+      setAccount(true);
     } finally {
-      setLoading(false);
+      setBusy(false);
     }
+  };
+  const openSaved = async (ref: RepoRef | "cloud") => {
+    if (ref === "cloud") {
+      if (cloud) await activate(cloud);
+      return;
+    }
+    if (!cloud || !githubAccess)
+      throw new Error("Connect GitHub on this browser before opening that saved vault.");
+    const candidates = githubAccess.connections(cloud.userId);
+    if (!candidates.length) {
+      // Connecting leaves the page; an unsaved new note would only have the browser's prompt.
+      if (live.current && !live.current.bridge.canSignOut())
+        throw new Error("Save or discard your new draft before connecting GitHub.");
+      await connectGitHub();
+      return;
+    }
+    let failure: unknown;
+    for (const connection of candidates) {
+      try {
+        await activate({
+          kind: "github",
+          ref,
+          token: "app",
+          remember: false,
+          accountId: cloud.userId,
+          connectionId: connection.id,
+        });
+        return;
+      } catch (reason) {
+        failure = reason;
+      }
+    }
+    throw failure ?? new Error("Connect a GitHub account with access to this repository.");
   };
   const signOut = async () => {
     if (!active) return;
@@ -152,10 +283,15 @@ function Root() {
       return;
     }
     forgetCredentials();
+    if (cloud) githubAccess?.clear(cloud.userId);
     await signOutAccount();
     previous.current =
       active.credentials.kind === "github" ? { ...active.credentials, token: "" } : undefined;
     setCloud(undefined);
+    setVaults(undefined);
+    setRepositories(undefined);
+    setGithub(undefined);
+    picker.current = undefined;
     active.bridge.dispose();
     await active.vault.cache.close();
     window.folio = createWebBridge();
@@ -169,7 +305,7 @@ function Root() {
         Opening Grove…
       </main>
     );
-  if (!active)
+  if (!active || github)
     return (
       <SignIn
         previous={previous.current}
@@ -177,6 +313,29 @@ function Root() {
         github={github}
         cloud={cloud}
         recovering={recovering}
+        repositories={repositories}
+        installationURL={
+          githubAccess
+            ? `https://github.com/apps/${githubAccess.slug}/installations/new`
+            : undefined
+        }
+        refreshRepositories={
+          picker.current
+            ? async () => {
+                const choice = picker.current!;
+                await showRepositories(choice.userId, choice.connectionId);
+              }
+            : undefined
+        }
+        cancelPicker={
+          active
+            ? () => {
+                setGithub(undefined);
+                setRepositories(undefined);
+                picker.current = undefined;
+              }
+            : undefined
+        }
         connect={(credentials) => activate(credentials)}
       />
     );
@@ -190,6 +349,7 @@ function Root() {
         }
       >
         <DesktopApp
+          key={active.vault.store.root}
           account={
             <button
               className="web-account-button"
@@ -197,6 +357,7 @@ function Root() {
               onClick={() => {
                 setAccount(true);
                 setError("");
+                void loadVaults().catch((reason) => setError(String(reason)));
                 void active.vault.cache.pending().then((edits) => setPending(edits.length));
               }}
             >
@@ -206,112 +367,32 @@ function Root() {
         />
       </Suspense>
       {account && (
-        <div
-          className="modal-backdrop"
-          onClick={(event) => event.target === event.currentTarget && setAccount(false)}
-        >
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-label="Repository account"
-            className="modal web-account"
-          >
-            <header>
-              <h2>Account</h2>
-              <button className="icon" aria-label="Close" onClick={() => setAccount(false)}>
-                <X size={16} />
-              </button>
-            </header>
-            <div className="web-account-who">
-              <span className="web-avatar" aria-hidden="true">
-                {(cloud?.email || "G").slice(0, 1).toUpperCase()}
-              </span>
-              <div>
-                <strong>{cloud?.email || "GitHub token"}</strong>
-                <small>
-                  {cloud ? "Signed in to Grove" : "Signed in with an access token in this browser"}
-                </small>
-              </div>
-            </div>
-            <h3 className="web-account-label">Vaults</h3>
-            <div className="web-vaults">
-              {(cloud || active.credentials.kind === "cloud") && (
-                <div
-                  className={`web-vault ${active.credentials.kind === "cloud" ? "current" : ""}`}
-                >
-                  <Cloud size={18} aria-hidden="true" />
-                  <div>
-                    <strong>Grove cloud</strong>
-                    <small>Notes stored by Grove</small>
-                  </div>
-                  {active.credentials.kind === "cloud" ? (
-                    <span className="badge">Open</span>
-                  ) : (
-                    <button onClick={() => void switchTo(cloud!)}>Use Grove cloud</button>
-                  )}
-                </div>
-              )}
-              <div className={`web-vault ${active.credentials.kind === "github" ? "current" : ""}`}>
-                <GitHubLogo />
-                <div>
-                  <strong>
-                    {active.credentials.kind === "github"
-                      ? `${active.credentials.ref.owner}/${active.credentials.ref.repo}`
-                      : "GitHub repository"}
-                  </strong>
-                  <small>
-                    {active.credentials.kind === "github"
-                      ? `Branch ${active.credentials.ref.branch}`
-                      : "Keep notes in a repository you own"}
-                  </small>
-                </div>
-                {active.credentials.kind === "github" && <span className="badge">Open</span>}
-                {cloud && (
-                  <button
-                    aria-label={
-                      active.credentials.kind === "github"
-                        ? "Choose another GitHub repository"
-                        : "Connect GitHub repository"
-                    }
-                    onClick={() => {
-                      if (!active.bridge.canSignOut()) {
-                        setError("Save or discard your new draft before connecting GitHub.");
-                        return;
-                      }
-                      void connectGitHub().catch((reason) =>
-                        setError(reason instanceof Error ? reason.message : String(reason)),
-                      );
-                    }}
-                  >
-                    {active.credentials.kind === "github" ? "Change" : "Connect"}
-                  </button>
-                )}
-              </div>
-            </div>
-            <p className="web-account-note">
-              {pending
-                ? `${pending} ${pending === 1 ? "change is" : "changes are"} waiting to sync. ${pending === 1 ? "It stays" : "They stay"} in this browser after sign-out.`
-                : "Everything is synced. A copy stays in this browser for offline use."}
-            </p>
-            {error && (
-              <p role="alert" className="web-error">
-                {error}
-              </p>
-            )}
-            <footer>
-              <button
-                className="web-sign-out"
-                onClick={() => void signOut().catch((reason) => setError(String(reason)))}
-              >
-                <LogOut size={15} aria-hidden="true" />
-                Sign out
-              </button>
-              <button className="primary" onClick={() => setAccount(false)}>
-                Back to notes
-              </button>
-            </footer>
-          </section>
-        </div>
+        <AccountDialog
+          active={active.credentials}
+          cloud={cloud}
+          vaults={vaults}
+          pending={pending}
+          busy={busy}
+          error={error}
+          close={() => setAccount(false)}
+          connect={() =>
+            void perform(async () => {
+              if (!active.bridge.canSignOut())
+                throw new Error("Save or discard your new draft before connecting GitHub.");
+              await connectGitHub();
+            })
+          }
+          open={(ref) => void perform(() => openSaved(ref))}
+          forget={(id) =>
+            void perform(async () => {
+              if (!cloud || !accounts) return;
+              await forgetVault(accounts, cloud.userId, id);
+              await loadVaults();
+            })
+          }
+          reload={() => void perform(() => loadVaults())}
+          signOut={() => void perform(signOut)}
+        />
       )}
     </>
   );

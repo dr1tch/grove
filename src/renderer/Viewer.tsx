@@ -1,3 +1,4 @@
+import { Toggle } from "radix-ui";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import {
   ExternalLink,
@@ -347,7 +348,10 @@ function DocumentPreview({
               onError={onMediaError}
               onLoadedMetadata={(event) => {
                 const video = event.currentTarget;
-                setMediaSize({ width: video.videoWidth, height: video.videoHeight });
+                setMediaSize({
+                  width: video.videoWidth,
+                  height: video.videoHeight,
+                });
               }}
               style={{
                 width: mediaSize.width * mediaScale || undefined,
@@ -362,7 +366,10 @@ function DocumentPreview({
               onError={onMediaError}
               onLoad={(event) => {
                 const img = event.currentTarget;
-                setMediaSize({ width: img.naturalWidth, height: img.naturalHeight });
+                setMediaSize({
+                  width: img.naturalWidth,
+                  height: img.naturalHeight,
+                });
               }}
               style={{
                 width: mediaSize.width * mediaScale || undefined,
@@ -419,14 +426,14 @@ function DocumentPreview({
             </button>
 
             <Tooltip text="Fit to window">
-              <button
+              <Toggle.Root
                 aria-label="Fit to window"
-                aria-pressed={fit}
+                pressed={fit}
                 disabled={media ? !mediaSize.width : !pdf}
-                onClick={() => setFit(true)}
+                onPressedChange={() => setFit(true)}
               >
                 <Scan />
-              </button>
+              </Toggle.Root>
             </Tooltip>
             <Tooltip text={fullscreen ? "Exit fullscreen (F)" : "Fullscreen (F)"}>
               <button
@@ -484,14 +491,14 @@ function DocumentPreview({
           </button>
           <span className="divider" />
           <Tooltip text="Fit to window">
-            <button
+            <Toggle.Root
               aria-label="Fit to window"
-              aria-pressed={fit}
+              pressed={fit}
               disabled={media ? !mediaSize.width : !pdf}
-              onClick={() => setFit(true)}
+              onPressedChange={() => setFit(true)}
             >
               <Scan />
-            </button>
+            </Toggle.Root>
           </Tooltip>
           {!video && window.folio.platform !== "web" && (
             <Tooltip text={standalone ? "Close viewer (Esc)" : "Open in separate window"}>

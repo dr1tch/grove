@@ -1,3 +1,4 @@
+import { Accordion } from "radix-ui";
 import {
   ArrowDownToLine,
   ArrowDownUp,
@@ -283,7 +284,7 @@ export default function App() {
                   </li>
                 ))}
               </ul>
-              <p>Native phone and browser apps are planned.</p>
+              <p>Phone and browser apps are in development.</p>
             </div>
             <figure className="phone-preview">
               <img
@@ -301,17 +302,26 @@ export default function App() {
           <div className="faq-wrap">
             <p className="eyebrow">Questions</p>
             <h2>Before you point it at your notes.</h2>
-            <div className="faq-list">
+            <Accordion.Root
+              type="single"
+              defaultValue="question-0"
+              collapsible
+              className="faq-list"
+            >
               {questions.map(([question, answer], index) => (
-                <details key={question} name="faq" open={index === 0}>
-                  <summary>
-                    {question}
-                    <Plus size={17} aria-hidden="true" />
-                  </summary>
-                  <p>{answer}</p>
-                </details>
+                <Accordion.Item key={question} value={`question-${index}`} className="faq-item">
+                  <Accordion.Header className="faq-heading">
+                    <Accordion.Trigger className="faq-trigger">
+                      {question}
+                      <Plus size={17} aria-hidden="true" />
+                    </Accordion.Trigger>
+                  </Accordion.Header>
+                  <Accordion.Content>
+                    <p>{answer}</p>
+                  </Accordion.Content>
+                </Accordion.Item>
               ))}
-            </div>
+            </Accordion.Root>
           </div>
           <div className="wrap final-cta">
             <h2>Open a folder. Start writing.</h2>

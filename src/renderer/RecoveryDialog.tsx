@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { Dialog } from "./Dialog";
+import { useState } from "react";
 import { diffLines } from "diff";
 export function RecoveryDialog({
   title,
@@ -13,26 +14,11 @@ export function RecoveryDialog({
   actions: { label: string; primary?: boolean; run: () => Promise<void> }[];
   close: () => void;
 }) {
-  const dialog = useRef<HTMLDialogElement>(null);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState("");
-  useEffect(() => {
-    dialog.current!.showModal();
-  }, []);
   const diff = diffLines(left.text, right.text);
   return (
-    <dialog
-      ref={dialog}
-      className="recovery-dialog"
-      aria-label={title}
-      onCancel={(event) => {
-        event.preventDefault();
-        if (!busy) close();
-      }}
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget && !busy) close();
-      }}
-    >
+    <Dialog className="recovery-dialog" label={title} close={close} dismissible={!busy}>
       <section>
         <header>
           <h2>{title}</h2>
@@ -97,6 +83,6 @@ export function RecoveryDialog({
           ))}
         </footer>
       </section>
-    </dialog>
+    </Dialog>
   );
 }

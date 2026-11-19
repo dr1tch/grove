@@ -1,3 +1,6 @@
+import { ToggleGroup } from "radix-ui";
+import { Dialog } from "./Dialog";
+import { SelectField } from "./Controls";
 import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import type { Document, Entry } from "../shared/types";
@@ -15,7 +18,6 @@ export function VaultInsertDialog({
   insert: (content: string) => void;
   close: () => void;
 }) {
-  const dialog = useRef<HTMLDialogElement>(null);
   const mounted = useRef(true);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -29,7 +31,6 @@ export function VaultInsertDialog({
   const [block, setBlock] = useState(0);
   const [mode, setMode] = useState("embed");
   useEffect(() => {
-    dialog.current!.showModal();
     mounted.current = true;
     void window.folio
       .list()
@@ -121,18 +122,7 @@ export function VaultInsertDialog({
     }
   };
   return (
-    <dialog
-      ref={dialog}
-      className="vault-insert-dialog"
-      aria-label="Insert from vault"
-      onCancel={(event) => {
-        event.preventDefault();
-        close();
-      }}
-      onClick={(event) => {
-        if (event.target === event.currentTarget) close();
-      }}
-    >
+    <Dialog className="vault-insert-dialog" label="Insert from vault" close={close}>
       <header>
         <h2>Insert from vault</h2>
         <button type="button" aria-label="Close insert dialog" onClick={close}>
@@ -147,22 +137,29 @@ export function VaultInsertDialog({
         disabled={busy}
         onChange={(event) => setQuery(event.target.value)}
       />
-      <div className="insert-filters" role="group" aria-label="Content type">
+      <ToggleGroup.Root
+        type="single"
+        value={filter}
+        className="insert-filters"
+        aria-label="Content type"
+        disabled={busy}
+        onValueChange={(value) => {
+          if (!value) return;
+          setFilter(value);
+          setSelected(undefined);
+        }}
+      >
         {["All", "Media", "Drawings", "Mermaid"].map((name) => (
-          <button
+          <ToggleGroup.Item
             type="button"
-            disabled={busy}
-            aria-pressed={filter === name}
+            value={name}
             key={name}
-            onClick={() => {
-              setFilter(name);
-              setSelected(undefined);
-            }}
+            onClick={() => setSelected(undefined)}
           >
             {name}
-          </button>
+          </ToggleGroup.Item>
         ))}
-      </div>
+      </ToggleGroup.Root>
       <p className="settings-help">
         Choose a file to embed or link, or a note to reuse its saved Mermaid diagrams and charts.
       </p>
@@ -194,18 +191,16 @@ export function VaultInsertDialog({
           {blocks.length > 0 && (
             <label>
               Mermaid block
-              <select
+              <SelectField
                 aria-label="Mermaid block"
-                value={block}
+                value={String(block)}
                 disabled={busy}
-                onChange={(event) => setBlock(Number(event.target.value))}
-              >
-                {blocks.map((item, index) => (
-                  <option key={index} value={index}>
-                    {index + 1}. {item.label}
-                  </option>
-                ))}
-              </select>
+                onValueChange={(value) => setBlock(Number(value))}
+                options={blocks.map((item, index) => ({
+                  value: String(index),
+                  label: `${index + 1}. ${item.label}`,
+                }))}
+              />
             </label>
           )}
           {selected.kind === "markdown" && !busy && !blocks.length && (
@@ -213,16 +208,17 @@ export function VaultInsertDialog({
           )}
           <label>
             Insert as
-            <select
+            <SelectField
               aria-label="Insert as"
               value={mode}
               disabled={busy}
-              onChange={(event) => setMode(event.target.value)}
-            >
-              {embeddable.has(selected.kind) && <option value="embed">Embed</option>}
-              {blocks.length > 0 && <option value="source">Editable Mermaid source</option>}
-              <option value="link">Link</option>
-            </select>
+              onValueChange={setMode}
+              options={[
+                ...(embeddable.has(selected.kind) ? [{ value: "embed", label: "Embed" }] : []),
+                ...(blocks.length ? [{ value: "source", label: "Editable Mermaid source" }] : []),
+                { value: "link", label: "Link" },
+              ]}
+            />
           </label>
           {mode === "source" && blocks[block] && <pre>{blocks[block].content}</pre>}
           <p className="settings-help">
@@ -250,6 +246,6 @@ export function VaultInsertDialog({
           {busy ? "Loading…" : "Insert"}
         </button>
       </footer>
-    </dialog>
+    </Dialog>
   );
 }

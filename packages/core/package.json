@@ -12,7 +12,8 @@
     "./markdown-format": "./src/markdown-format.ts",
     "./vault-insert": "./src/vault-insert.ts",
     "./attachments": "./src/attachments.ts",
-    "./conflicts": "./src/conflicts.ts"
+    "./conflicts": "./src/conflicts.ts",
+    "./code-block": "./src/code-block.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json"

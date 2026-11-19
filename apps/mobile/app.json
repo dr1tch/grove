@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "Grove",
+    "slug": "grove-mobile",
+    "version": "0.1.1",
+    "scheme": "grove",
+    "icon": "../../build/icon.png",
+    "orientation": "default",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "bundleIdentifier": "app.grove.mobile",
+      "supportsTablet": true
+    },
+    "android": {
+      "versionCode": 2,
+      "package": "app.grove.mobile",
+      "softwareKeyboardLayoutMode": "resize"
+    },
+    "web": {
+      "bundler": "metro",
+      "name": "Grove phone preview"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-sqlite",
+      "expo-font",
+      "expo-web-browser",
+      "expo-status-bar",
+      "expo-asset"
+    ]
+  }
+}

@@ -24,9 +24,12 @@ for (const [name, width, height] of [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><rect width="100%" height="100%" fill="#368478"/><circle cx="200" cy="200" r="100" fill="#eee"/></svg>`,
   );
 }
-await copyFile("/home/dr1tch/Documents/261032848.pdf", join(vault, "Regression.pdf"));
+await copyFile(new URL("./fixtures/sample.pdf", import.meta.url), join(vault, "Regression.pdf"));
 await mkdir(join(vault, "PDF folder"));
-await copyFile("/home/dr1tch/Documents/261032848.pdf", join(vault, "PDF folder/Report # café.pdf"));
+await copyFile(
+  new URL("./fixtures/sample.pdf", import.meta.url),
+  join(vault, "PDF folder/Report # café.pdf"),
+);
 await writeFile(join(profile, "state.json"), JSON.stringify({ settings: { theme: "dark" } }));
 await mkdir("qa-artifacts/pdf", { recursive: true });
 let app;

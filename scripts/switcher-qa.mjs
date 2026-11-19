@@ -8,18 +8,18 @@ const temp = await mkdtemp(join(tmpdir(), "grove-panes-")),
   profile = join(temp, "profile");
 await mkdir(vault);
 await mkdir(profile);
-await writeFile(join(profile, "state.json"), "{}");
+await writeFile(join(profile, "state.json"), JSON.stringify({ vault }));
 await writeFile(join(vault, "Note.md"), "# Notes\n\n" + "A paragraph for reading.\n\n".repeat(100));
 await writeFile(join(vault, "Other.md"), "# Other\n");
-await copyFile("/home/dr1tch/Documents/261032848.pdf", join(vault, "Receipt.pdf"));
+await copyFile(new URL("./fixtures/sample.pdf", import.meta.url), join(vault, "Receipt.pdf"));
 let app;
 try {
   app = await electron.launch({
-    args: ["--ozone-platform=x11", ".", `--user-data-dir=${profile}`],
+    args: [".", "--ozone-platform=x11", `--user-data-dir=${profile}`],
   });
   let page = await app.firstWindow();
   page.setDefaultTimeout(15000);
-  await page.locator('.file-row[data-path="package.json"]').waitFor();
+  await page.locator(".app").waitFor();
   await app.evaluate(
     ({ app }, root) => app.emit("second-instance", {}, ["electron", "app", root]),
     vault,

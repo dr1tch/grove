@@ -84,7 +84,7 @@ html[data-platform="web"] {
     14px Geist,
     sans-serif;
 }
-.web-sign-in button {
+.web-sign-in button:not([role="checkbox"]) {
   min-height: 44px;
   justify-content: center;
   border-radius: 7px;
@@ -349,6 +349,10 @@ html[data-platform="web"] {
   gap: 10px;
   margin: 22px 0;
 }
+.web-auth-separator {
+  height: 1px;
+  background: var(--line);
+}
 .web-sign-in .web-link {
   background: none;
   border: 0;
@@ -400,4 +404,47 @@ html[data-platform="web"] {
 }
 [data-platform="web"] .settings-content .sync-note {
   margin-top: 16px;
+}
+.web-account-dialog {
+  margin: auto;
+  border: 1px solid var(--line);
+  color: var(--text);
+  background: var(--surface);
+  padding: 24px;
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
+}
+.web-account-dialog::backdrop {
+  background: #0006;
+}
+.web-vault-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+}
+.web-vault-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.web-vault > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.web-vault .icon {
+  flex-shrink: 0;
+  padding: 5px;
+  min-width: 26px;
+}
+.web-vault:has(> .icon) {
+  grid-template-columns: 20px minmax(0, 1fr) auto auto;
+}
+@media (max-width: 600px) {
+  .web-vault > button,
+  .web-vault > button.icon {
+    min-width: 44px;
+    min-height: 44px;
+  }
 }

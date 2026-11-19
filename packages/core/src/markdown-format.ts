@@ -7,6 +7,7 @@ export type MarkdownAction =
   | "bullet"
   | "ordered"
   | "task"
+  | "table"
   | "h0"
   | "h1"
   | "h2"
@@ -25,6 +26,18 @@ export function formatMarkdown(
   action: MarkdownAction,
 ): MarkdownEdit {
   const selected = text.slice(from, to);
+  if (action === "table") {
+    const before = text.slice(0, from).match(/\n*$/)![0].length,
+      after = text.slice(to).match(/^\n*/)![0].length;
+    const insert = `${from ? "\n".repeat(Math.max(0, 2 - before)) : ""}| Column 1 | Column 2 |\n| --- | --- |\n|  |  |${"\n".repeat(Math.max(0, 2 - after))}`;
+    return {
+      changes: [{ from, to, insert }],
+      selection: {
+        anchor: from + insert.indexOf("Column 1"),
+        head: from + insert.indexOf("Column 1") + 8,
+      },
+    };
+  }
   if ((action === "bold" || action === "italic") && selected && selected !== selected.trim()) {
     if (!selected.trim()) return formatMarkdown(text, to, to, action);
     return formatMarkdown(

@@ -107,7 +107,7 @@ try {
   await page.locator('.file-row[data-path="Notes/Welcome.md"]').waitFor();
   await page.locator('.file-row[data-path="Notes/Welcome.md"]').dblclick();
   await page.getByRole("heading", { name: "Welcome", exact: true }).waitFor();
-  await page.getByRole("button", { name: "Edit", exact: true }).first().click();
+  await page.getByRole("radio", { name: "Edit", exact: true }).first().click();
   await page.getByRole("toolbar", { name: "Markdown formatting" }).waitFor();
   assert.equal(await page.getByRole("button", { name: "Minimize", exact: true }).count(), 0);
   assert.equal(await page.getByRole("button", { name: "Assistant", exact: true }).count(), 0);
@@ -132,7 +132,7 @@ try {
 
   const row = (path) => page.locator(`.file-row[data-path="${path}"]`).first();
   const view = (name) =>
-    page.locator(".title-actions").getByRole("button", { name, exact: true }).click();
+    page.locator(".title-actions").getByRole("radio", { name, exact: true }).click();
 
   // Previews: Mermaid and an embedded vault image in a note, then image, PDF and drawing files.
   await view("Preview");
@@ -289,13 +289,16 @@ try {
   await page.locator('.file-row[data-path="Notes/Welcome.md"]').first().dblclick();
   await page.getByText("Blocked by protection.").first().waitFor();
   fake.protected = false;
-  await page.getByRole("button", { name: "Edit", exact: true }).first().click();
+  await page.getByRole("radio", { name: "Edit", exact: true }).first().click();
   await page.locator(".cm-content").first().click();
   await page.keyboard.press("Control+s");
   await until(() => fake.text(welcome)?.includes("Blocked by protection."), "queued edit uploads");
   console.log("PASS: protected branch keeps the edit queued across reload, then uploads.");
 
-  fake.set(welcome, "# Welcome\n\nChanged on GitHub.\n");
+  fake.beforeWrite = () => {
+    fake.beforeWrite = undefined;
+    fake.set(welcome, "# Welcome\n\nChanged on GitHub.\n");
+  };
   await type("\nLocal after remote change.");
   // Either sync writes a conflict copy, or the save sees the newer GitHub version first and
   // the tab shows the conflict banner with the local text intact. Both keep both versions.

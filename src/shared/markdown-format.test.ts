@@ -2,6 +2,12 @@ import { describe, expect, it } from "vite-plus/test";
 import { EditorState } from "@codemirror/state";
 import { fromMarkdown } from "mdast-util-from-markdown";
 import { formatMarkdown } from "./markdown-format";
+it("inserts a separate Markdown table without accumulating surrounding blank lines", () => {
+  const text = "Before\n\nAfter",
+    state = EditorState.create({ doc: text });
+  const next = state.update(formatMarkdown(text, 6, 6, "table")).state.doc.toString();
+  expect(next).toBe("Before\n\n| Column 1 | Column 2 |\n| --- | --- |\n|  |  |\n\nAfter");
+});
 
 function format(
   text: string,

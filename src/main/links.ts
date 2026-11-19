@@ -7,7 +7,10 @@ const moved = (path: string, source: string, target: string) =>
 export class Links {
   private plans = new Map<string, RenamePlan>();
   private busy = false;
-  private cache = new Map<string, { fingerprint: string; doc: Document }>();
+  private cache = new Map<
+    string,
+    { fingerprint: string; doc: Document; paths?: string; refs?: LinkRef[] }
+  >();
   constructor(private vault: Vault) {}
   invalidate(path: string) {
     this.cache.delete(path);
@@ -15,31 +18,63 @@ export class Links {
   private async documents(fresh = false) {
     const entries = await this.vault.list(),
       paths = entries.filter((e) => e.kind !== "folder").map((e) => e.path),
-      docs: Document[] = [];
-    for (const entry of entries.filter((e) => e.kind === "markdown")) {
+      docs = new Map<string, Document>();
+    const markdown = entries.filter((e) => e.kind === "markdown"),
+      pending = [];
+    for (const entry of markdown) {
       const key = `${entry.modified}:${entry.size}`,
         cached = this.cache.get(entry.path);
       if (!fresh && cached?.fingerprint === key) {
-        docs.push(cached.doc);
+        docs.set(entry.path, cached.doc);
         continue;
       }
-      try {
-        const doc = await this.vault.read(entry.path);
-        this.cache.set(entry.path, { fingerprint: key, doc });
-        docs.push(doc);
-      } catch (error) {
-        if (fresh)
+      pending.push(entry);
+    }
+    let cursor = 0;
+    while (cursor < pending.length) {
+      const batch = [];
+      let bytes = 0;
+      while (
+        cursor < pending.length &&
+        batch.length < 32 &&
+        (!batch.length || bytes + pending[cursor].size <= 1024 * 1024)
+      ) {
+        const entry = pending[cursor++];
+        batch.push(entry);
+        bytes += entry.size;
+      }
+      const records = await this.vault.readMany(batch.map((entry) => entry.path));
+      for (const [index, record] of records.entries()) {
+        if (record.document) {
+          const entry = batch[index];
+          this.cache.set(entry.path, {
+            fingerprint: `${entry.modified}:${entry.size}`,
+            doc: record.document,
+          });
+          docs.set(entry.path, record.document);
+        } else if (fresh) {
           throw new Error(
-            `Cannot inspect ${entry.path}; fix the file or choose Rename only. ${String(error)}`,
+            `Cannot inspect ${record.path}; fix the file or choose Rename only. ${record.error}`,
           );
+        }
       }
     }
-    for (const path of this.cache.keys()) if (!paths.includes(path)) this.cache.delete(path);
-    return { paths, docs };
+    const valid = new Set(paths);
+    for (const path of this.cache.keys()) if (!valid.has(path)) this.cache.delete(path);
+    return { paths, docs: markdown.flatMap((entry) => docs.get(entry.path) ?? []) };
   }
   async forPath(path: string) {
     const { paths, docs } = await this.documents(),
-      refs: LinkRef[] = docs.flatMap((doc) => parseLinks(doc.path, doc.content, paths));
+      pathsKey = JSON.stringify(paths);
+    const refs = docs.flatMap((doc) => {
+      const cached = this.cache.get(doc.path);
+      if (!cached || cached.doc.hash !== doc.hash) return parseLinks(doc.path, doc.content, paths);
+      if (cached.paths !== pathsKey || !cached.refs) {
+        cached.refs = parseLinks(doc.path, doc.content, paths);
+        cached.paths = pathsKey;
+      }
+      return cached.refs;
+    });
     return {
       incoming: refs.filter((ref) => ref.targetPath === path && !ref.ambiguous),
       outgoing: refs.filter((ref) => ref.sourcePath === path),

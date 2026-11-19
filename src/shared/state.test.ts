@@ -19,7 +19,7 @@ it("clamps appearance and window sizes", () => {
   expect(result.settings?.fontSize).toBe(14);
 });
 it("preserves full and spacious reading widths, local fonts and sidebar size", () => {
-  for (const readingWidth of [0, 960, 1200]) {
+  for (const readingWidth of [0, 600, 680, 960, 1200]) {
     const state = cleanState({
       settings: { font: "local", localFont: "DejaVu Sans", readingWidth },
       sidebarWidth: 380,
@@ -29,4 +29,12 @@ it("preserves full and spacious reading widths, local fonts and sidebar size", (
     expect(state.settings?.font).toBe("local");
     expect(state.sidebarWidth).toBe(380);
   }
+});
+it("defaults missing reading widths to the full pane", () => {
+  expect(cleanState({ settings: {} }).settings?.readingWidth).toBe(0);
+});
+it("persists Live Preview and defaults unknown preview styles to formatted", () => {
+  expect(cleanState({ settings: { previewStyle: "live" } }).settings?.previewStyle).toBe("live");
+  for (const previewStyle of [undefined, "formatted", "invalid", null])
+    expect(cleanState({ settings: { previewStyle } }).settings?.previewStyle).toBe("formatted");
 });

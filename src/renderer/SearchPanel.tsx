@@ -1,3 +1,4 @@
+import { Disclosure } from "./Controls";
 import { useEffect, useRef, useState } from "react";
 import type { SearchHit } from "../shared/types";
 import type { WorkingTab } from "../shared/recovery";
@@ -149,14 +150,13 @@ export function SearchPanel({
         })}
       </div>
       {!!errors.length && (
-        <details>
-          <summary>{errors.length} files could not be searched</summary>
+        <Disclosure title={<>{errors.length} files could not be searched</>}>
           {errors.map((error, i) => (
             <p key={i}>
               {error.path}: {error.error}
             </p>
           ))}
-        </details>
+        </Disclosure>
       )}
     </section>
   );
