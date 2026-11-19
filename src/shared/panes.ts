@@ -13,6 +13,8 @@ export function cleanView(value: unknown): ViewState {
     media = record(v.media);
   return {
     mode: v.mode === "edit" || v.mode === "split" ? v.mode : "preview",
+    zoom: number(v.zoom, 1, 0.5, 3),
+    fitWidth: v.fitWidth === true,
     editorScroll: number(v.editorScroll),
     previewScroll: number(v.previewScroll),
     page: Math.floor(number(v.page, 1, 1)),

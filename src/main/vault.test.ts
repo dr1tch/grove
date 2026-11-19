@@ -24,6 +24,37 @@ afterEach(async () => {
   await rm(root, { recursive: true, force: true });
 });
 describe("vault boundaries and recovery", () => {
+  it("retains external-change history after a batch read", async () => {
+    await vault.readMany(["note.md"]);
+    await writeFile(join(root, "note.md"), "External");
+    await vault.observe("note.md");
+    const versions = await vault.versions("note.md");
+    expect(versions.map((version) => version.content)).toContain("original");
+    expect(versions.map((version) => version.content)).toContain("External");
+  });
+  it("bounds aggregate batch contents without dropping smaller subsequent files", async () => {
+    await writeFile(join(root, "a.md"), "a".repeat(11 * 1024 * 1024));
+    await writeFile(join(root, "b.md"), "b".repeat(11 * 1024 * 1024));
+    const records = await vault.readMany(["a.md", "b.md", "note.md"]);
+    expect(records[0].document?.content.length).toBe(11 * 1024 * 1024);
+    expect(records[1].error).toContain("20 MB");
+    expect(records[2].document?.content).toBe("original");
+  });
+  it("batch-reads safe files while reporting individual failures without following symlinks", async () => {
+    await writeFile(join(root, "second.md"), "Second");
+    await symlink("/etc/passwd", join(root, "escape.md"));
+    const records = await vault.readMany(["note.md", "second.md", "escape.md", "missing.md"]);
+    expect(records.map((record) => record.document?.content)).toEqual([
+      "original",
+      "Second",
+      undefined,
+      undefined,
+    ]);
+    expect(records[2].error).toBeTruthy();
+    expect(records[3].error).toBeTruthy();
+    await expect(vault.readMany(["../escape"])).rejects.toThrow();
+    await expect(vault.readMany(Array(33).fill("note.md"))).rejects.toThrow();
+  });
   it("detects PDF content behind a different extension without changing text decoding", async () => {
     const bytes = Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34, 0x0a, 0xe2]);
     await writeFile(join(root, "receipt.xhtml"), bytes);

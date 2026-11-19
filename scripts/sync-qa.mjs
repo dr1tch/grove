@@ -75,7 +75,7 @@ try {
   );
 
   // Auto commit after a save
-  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  await page.getByRole("radio", { name: "Edit", exact: true }).click();
   await page.locator(".cm-content").click();
   await page.keyboard.press("Control+End");
   await page.keyboard.type("Edited in Grove");

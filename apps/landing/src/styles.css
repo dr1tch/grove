@@ -20,16 +20,16 @@ a {
   text-decoration: none;
 }
 a,
-summary {
+.faq-trigger {
   -webkit-tap-highlight-color: transparent;
 }
 button,
 a,
-summary {
+.faq-trigger {
   touch-action: manipulation;
 }
 a:focus-visible,
-summary:focus-visible {
+.faq-trigger:focus-visible {
   outline: 3px solid #00875a;
   outline-offset: 5px;
   border-radius: 4px;
@@ -470,15 +470,25 @@ h3 {
 .faq-list {
   margin-top: 20px;
 }
-details {
+.faq-item {
   border-bottom: 1px solid #e5e4df;
   padding: 0 13px;
 }
-details[open] {
+.faq-item[data-state="open"] {
   background: #ffffffa6;
   border-radius: 7px;
 }
-summary {
+.faq-heading {
+  margin: 0;
+}
+.faq-trigger {
+  width: 100%;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  padding-inline: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -490,16 +500,13 @@ summary {
   font-weight: 600;
   line-height: 1.4;
 }
-summary::-webkit-details-marker {
-  display: none;
-}
-summary svg {
+.faq-trigger svg {
   flex-shrink: 0;
 }
-details[open] summary svg {
+.faq-item[data-state="open"] .faq-trigger svg {
   transform: rotate(45deg);
 }
-details p {
+.faq-item p {
   font-size: 13px;
   line-height: 1.6;
   color: #454640;
@@ -678,11 +685,11 @@ details p {
   .phone-copy ul {
     gap: 10px;
   }
-  summary {
+  .faq-trigger {
     font-size: 12px;
     padding-block: 12px;
   }
-  details p {
+  .faq-item p {
     font-size: 12px;
   }
 }
@@ -832,14 +839,14 @@ details p {
   .faq-section {
     padding-block: 35px 20px;
   }
-  summary {
+  .faq-trigger {
     font-size: 13px;
     min-height: 48px;
   }
-  details {
+  .faq-item {
     padding-inline: 9px;
   }
-  details p {
+  .faq-item p {
     font-size: 13px;
   }
   .final-cta {

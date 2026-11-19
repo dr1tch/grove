@@ -16,8 +16,9 @@ import {
   visiblePath,
 } from "./types";
 import type { RepoRef, VaultEntry } from "./types";
+import type { RemoteStore } from "./remote";
 
-export class VaultStore {
+export class VaultStore implements RemoteStore {
   readonly ref: Readonly<RepoRef>;
   readonly root: string;
   readonly device: string;
@@ -32,6 +33,9 @@ export class VaultStore {
     this.ref = Object.freeze({ ...ref });
     this.device = (options.device ?? "Grove client").replace(/[\r\n]/g, " ").slice(0, 80);
     this.#api = new GitHub(ref, token, options.fetch);
+  }
+  dispose(): void {
+    this.#api.dispose();
   }
   #message() {
     return `Grove: ${this.device} ${new Date().toISOString()}`;

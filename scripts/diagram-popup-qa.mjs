@@ -34,7 +34,7 @@ await writeFile(
 let app;
 try {
   app = await electron.launch({
-    args: ["--ozone-platform=x11", ".", `--user-data-dir=${profile}`],
+    args: [".", "--ozone-platform=x11", `--user-data-dir=${profile}`],
   });
   const page = await app.firstWindow();
   page.setDefaultTimeout(15000);
@@ -57,18 +57,21 @@ try {
     );
   await page.locator('.file-tree .file-row[data-path="Diagram.md"]').click();
   await page.locator(".diagram-block .mermaid svg").waitFor();
-  const preview = page.locator(".writing > .preview");
+  const preview = page.locator(".writing .preview");
   await preview.evaluate((el) => (el.scrollTop = 150));
   await page.getByRole("button", { name: "Expand diagram", exact: true }).click();
-  const modal = page.getByRole("dialog", { name: "Flowchart diagram", exact: true });
+  const modal = page.getByRole("dialog", {
+    name: "Flowchart diagram",
+    exact: true,
+  });
   await modal.waitFor().catch(async (e) => {
     console.error("ERRORS", errors);
     console.error(await page.locator("body").innerText());
     console.error(
-      await page.locator("dialog").evaluateAll((els) =>
+      await page.getByRole("dialog").evaluateAll((els) =>
         els.map((el) => ({
           html: el.outerHTML.slice(0, 500),
-          open: el.open,
+          open: el.getAttribute("data-state") === "open",
           rect: el.getBoundingClientRect().toJSON(),
         })),
       ),

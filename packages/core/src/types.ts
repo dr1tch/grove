@@ -22,6 +22,7 @@ export type Settings = {
   localFont?: string;
   fontSize: number;
   readingWidth: number;
+  previewStyle?: "formatted" | "live";
 };
 export type AttachmentRef = { path: string; kind: Kind; copied: boolean };
 export type LinkRef = {

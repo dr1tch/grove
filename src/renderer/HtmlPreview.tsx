@@ -1,3 +1,4 @@
+import { Disclosure } from "./Controls";
 import { useEffect, useState } from "react";
 export function HtmlPreview({ path, value, root }: { path: string; value: string; root: string }) {
   const [preview, setPreview] = useState<{ url: string; warnings: string[] }>(),
@@ -32,12 +33,11 @@ export function HtmlPreview({ path, value, root }: { path: string; value: string
       <header>Offline preview · scripts and external resources are disabled</header>
       {error && <p role="alert">{error}</p>}
       {preview?.warnings.length ? (
-        <details>
-          <summary>{preview.warnings.length} omitted or missing resources</summary>
+        <Disclosure title={<>{preview.warnings.length} omitted or missing resources</>}>
           {preview.warnings.map((warning, i) => (
             <p key={i}>{warning}</p>
           ))}
-        </details>
+        </Disclosure>
       ) : null}
       {preview ? (
         <iframe title={`HTML preview: ${path}`} sandbox="" src={preview.url} />

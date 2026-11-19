@@ -324,3 +324,15 @@ it("opens cached text when only a binary response body disconnects after headers
   failBody = true;
   expect((await session.read("a.md")).content).toBe("base");
 });
+
+it("accepts a save based on a revision that was just uploaded", async () => {
+  const { fake, session } = setup();
+  const base = await session.read("a.md");
+  const first = await save(session, "a.md", "first", base.hash);
+  expect((await session.syncNow()).state).toBe("synced");
+  // The editor still holds the local revision hash when the upload is acknowledged.
+  const second = await session.write("a.md", "second", first.hash);
+  expect(second.status).toBe("saved");
+  expect((await session.syncNow()).state).toBe("synced");
+  expect(fake.text("a.md")).toBe("second");
+});

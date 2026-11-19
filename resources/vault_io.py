@@ -248,7 +248,7 @@ lock = None
 private = None
 try:
     path = request.get('path', '')
-    if action not in ('list', 'trashList', 'undelete'):
+    if action not in ('list', 'trashList', 'undelete', 'readMany'):
         validate(path)
     if action == 'rename':
         validate(request['newPath'])
@@ -475,6 +475,24 @@ try:
             os.close(parent)
     elif action == 'read':
         result = doc(path)
+    elif action == 'readMany':
+        paths = request.get('paths')
+        if not isinstance(paths, list) or len(paths) > 32:
+            raise ValueError('Invalid read batch')
+        for item in paths:
+            validate(item)
+        result = []
+        total = 0
+        for item in paths:
+            try:
+                document = doc(item)
+                size = len(document['content'].encode('utf-8'))
+                if total + size > 20 * 1024 * 1024:
+                    raise ValueError('Read batch exceeds 20 MB')
+                total += size
+                result.append(dict(path=item, document=document))
+            except (OSError, ValueError, UnicodeError) as error:
+                result.append(dict(path=item, error=str(error)))
     elif action == 'checkpoint':
         snapshot(path, request['content'], request.get('author','Unsaved draft'))
         result = None

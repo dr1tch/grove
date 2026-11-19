@@ -1,3 +1,4 @@
+import { Toggle } from "radix-ui";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import {
   ExternalLink,
@@ -12,6 +13,7 @@ import {
   Minimize2,
   Play,
 } from "lucide-react";
+import { useAsset } from "./useAsset";
 import { Tooltip } from "./Tooltip";
 import { PdfSearch } from "./PdfSearch";
 import {
@@ -346,7 +348,10 @@ function DocumentPreview({
               onError={onMediaError}
               onLoadedMetadata={(event) => {
                 const video = event.currentTarget;
-                setMediaSize({ width: video.videoWidth, height: video.videoHeight });
+                setMediaSize({
+                  width: video.videoWidth,
+                  height: video.videoHeight,
+                });
               }}
               style={{
                 width: mediaSize.width * mediaScale || undefined,
@@ -361,7 +366,10 @@ function DocumentPreview({
               onError={onMediaError}
               onLoad={(event) => {
                 const img = event.currentTarget;
-                setMediaSize({ width: img.naturalWidth, height: img.naturalHeight });
+                setMediaSize({
+                  width: img.naturalWidth,
+                  height: img.naturalHeight,
+                });
               }}
               style={{
                 width: mediaSize.width * mediaScale || undefined,
@@ -418,14 +426,14 @@ function DocumentPreview({
             </button>
 
             <Tooltip text="Fit to window">
-              <button
+              <Toggle.Root
                 aria-label="Fit to window"
-                aria-pressed={fit}
+                pressed={fit}
                 disabled={media ? !mediaSize.width : !pdf}
-                onClick={() => setFit(true)}
+                onPressedChange={() => setFit(true)}
               >
                 <Scan />
-              </button>
+              </Toggle.Root>
             </Tooltip>
             <Tooltip text={fullscreen ? "Exit fullscreen (F)" : "Fullscreen (F)"}>
               <button
@@ -483,16 +491,16 @@ function DocumentPreview({
           </button>
           <span className="divider" />
           <Tooltip text="Fit to window">
-            <button
+            <Toggle.Root
               aria-label="Fit to window"
-              aria-pressed={fit}
+              pressed={fit}
               disabled={media ? !mediaSize.width : !pdf}
-              onClick={() => setFit(true)}
+              onPressedChange={() => setFit(true)}
             >
               <Scan />
-            </button>
+            </Toggle.Root>
           </Tooltip>
-          {!video && (
+          {!video && window.folio.platform !== "web" && (
             <Tooltip text={standalone ? "Close viewer (Esc)" : "Open in separate window"}>
               <button
                 aria-label={standalone ? "Close viewer" : "Full window"}
@@ -555,24 +563,19 @@ export function Viewer({
   position?: ViewState;
   onPosition?: (position: Partial<ViewState>) => void;
 }) {
-  const [url, setUrl] = useState("");
+  const { url, error: loadError } = useAsset(
+    entry.path,
+    entry.kind !== "drawing" && (entry.kind !== "office" || window.folio.platform !== "web"),
+  );
   const [assetError, setAssetError] = useState("");
-  useEffect(() => {
-    let active = true;
-    setUrl("");
-    setAssetError("");
-    void window.folio
-      .asset(entry.path)
-      .then((url) => {
-        if (active) setUrl(url);
-      })
-      .catch((e) => {
-        if (active) setAssetError(String(e));
-      });
-    return () => {
-      active = false;
-    };
-  }, [entry.path]);
+  useEffect(() => setAssetError(loadError), [entry.path, url, loadError]);
+  if (entry.kind === "office" && window.folio.platform === "web")
+    return (
+      <section className="empty">
+        <h2>Office previews are available in the Grove desktop app.</h2>
+        <p>The original file stays in your repository.</p>
+      </section>
+    );
   if (entry.kind === "drawing")
     return (
       <Suspense fallback={<div className="empty">Opening drawing…</div>}>
@@ -593,7 +596,11 @@ export function Viewer({
           {entry.kind === "pdf" ? "PDF" : entry.name.split(".").pop()?.toUpperCase()} ·{" "}
           {(entry.size / 1024).toFixed(1)} KB · original file is never modified
         </span>
-        <button className="push" onClick={() => void window.folio.external(entry.path)}>
+        <button
+          data-desktop
+          className="push"
+          onClick={() => void window.folio.external(entry.path)}
+        >
           <ExternalLink /> Open externally
         </button>
       </div>
@@ -607,6 +614,7 @@ export function Viewer({
         </div>
       )}
       {url &&
+        !assetError &&
         (entry.kind === "pdf" || entry.kind === "office" ? (
           <DocumentPreview
             key={url}
@@ -624,7 +632,6 @@ export function Viewer({
             image={entry.name}
             onExpand={() => window.folio.openPreview(entry.path, vaultRoot)}
             onMediaError={() => {
-              setUrl("");
               setAssetError("This image format cannot be decoded. Open it externally.");
             }}
           />
@@ -635,7 +642,6 @@ export function Viewer({
               url={url}
               name={entry.name}
               onError={() => {
-                setUrl("");
                 setAssetError("This media codec is not supported. Open it externally.");
               }}
             />
@@ -648,7 +654,6 @@ export function Viewer({
             url={url}
             video={entry.name}
             onMediaError={() => {
-              setUrl("");
               setAssetError("This media codec is not supported. Open it externally.");
             }}
           />
@@ -661,7 +666,11 @@ export function Viewer({
             <h2>Open {entry.name} externally</h2>
             <p className="muted">{`Grove cannot preview .${entry.name.split(".").pop()} files.`}</p>
             <div className="actions">
-              <button className="primary" onClick={() => void window.folio.external(entry.path)}>
+              <button
+                data-desktop
+                className="primary"
+                onClick={() => void window.folio.external(entry.path)}
+              >
                 <ExternalLink /> Open externally
               </button>
               <button onClick={() => void window.folio.external(entry.path, true)}>

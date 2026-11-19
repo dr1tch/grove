@@ -43,7 +43,12 @@ try {
         left: block.getBoundingClientRect().left,
       }));
       const pane = el.closest(".preview");
-      return { inner, blocks, paneWidth: pane.clientWidth, scrollWidth: pane.scrollWidth };
+      return {
+        inner,
+        blocks,
+        paneWidth: pane.clientWidth,
+        scrollWidth: pane.scrollWidth,
+      };
     });
     assert.equal(result.blocks.length, 4);
     for (const block of result.blocks)
@@ -55,11 +60,12 @@ try {
   assert.ok(full.inner > 900);
   await page.screenshot({ path: "qa-artifacts/width/full-width.png" });
   await page.getByRole("button", { name: "Settings (Ctrl+,)", exact: true }).click();
-  await page.getByLabel("Reading width", { exact: true }).selectOption("1200");
+  await page.getByLabel("Reading width", { exact: true }).click();
+  await page.getByRole("option", { name: "Spacious · 1200", exact: true }).click();
   await page.getByRole("button", { name: "Close settings", exact: true }).click();
   const wide = await check("wide");
   assert.ok(wide.inner > 900);
-  await page.getByRole("button", { name: "Split", exact: true }).click();
+  await page.getByRole("radio", { name: "Split", exact: true }).click();
   await check("split");
   console.log(
     "PASS: code, flowchart and chart frames match table/document width in full-width, wide and split previews; no horizontal pane overflow. Fixture:",

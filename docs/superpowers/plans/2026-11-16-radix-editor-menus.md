@@ -1,0 +1,13 @@
+# Radix editor menus
+
+Use executing-plans inline with one focused review. The user approved selective Radix Primitives adoption, starting with context menus while preserving Grove's appearance. No installation, commit or publishing is authorized.
+
+1. Replace ItemMenu's manual positioning, focus navigation and dismissal with the Radix menu primitive used internally by Context Menu. Keep the existing verified point/snapshot ownership API, using a virtual anchor. Adopt explicit Radix menu items and real Row/Column submenus at all existing editor callers. Preserve fullscreen portal targets, dialog focus and stale-content guards.
+2. Keep Grove's current menu colors, typography, spacing, icons and245px width. Add highlighted/disabled state styling for Radix items and reuse the same styles for nested menus. Do not introduce Radix Themes or replace Tiptap/CodeMirror.
+3. Verify keyboard/typeahead/submenu/escape/outside-click behavior, edge positioning, selection, stale menu closure, undo, dialogs and fullscreen through isolated desktop and fake-GitHub browser QA. Run types, unit tests, builds and focused code review; update docs. Tooltips/popovers and unrelated application menus can migrate separately after this first component is verified.
+
+Ruling: use @radix-ui/react-menu directly because Grove's existing native editor context handlers already verify the cursor range and supply a virtual point. This is the primitive Radix Context Menu uses, avoiding a synthetic trigger or an editor DOM ownership rewrite. Pin2.2.1 in desktop and web packages.
+
+Implementation: ItemMenu preserves the opening snapshot/point hook, delegates placement/focus/dismissal to Radix Root/Anchor/Content and uses fullscreen-aware portals. All existing node/menu actions use ItemMenuItem; Row/Column use controlled ItemSubmenu. The root is nonmodal so the native editor and dialogs retain ownership; closing explicitly restores the prior connected focus target unless a dialog or another focused control owns it. Shared visual classes preserve the existing theme and compact sizing.
+
+Verification:208 unit tests pass,10 database cases skip, desktop/web types/builds/scoped checks pass. Expanded preview-items-qa proves hover, arrow navigation, Home/End, typeahead, Escape, outside clicks, viewport containment, selection, stale source closure, dialog actions, undo and fullscreen portals. Focused review found delayed old-menu focus restoration stealing focus from a replacement menu; the fix restores focus only from body, with an explicit native menu-switch regression in both styles.16paired visual states retain prior findings fixed with0open/0new issues. No install or Git operation performed.

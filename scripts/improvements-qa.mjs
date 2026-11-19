@@ -56,7 +56,10 @@ async function check(name, fn) {
   const dismiss = page.locator(".dismiss").last();
   if (await dismiss.isVisible().catch(() => false))
     await dismiss.click({ position: { x: 1, y: 1 } });
-  const closeDialog = page.getByRole("button", { name: "Close dialog", exact: true });
+  const closeDialog = page.getByRole("button", {
+    name: "Close dialog",
+    exact: true,
+  });
   if (await closeDialog.isVisible().catch(() => false)) await closeDialog.click();
 }
 async function open(name) {
@@ -163,18 +166,24 @@ try {
   });
   await check("appearance-full-width-local-font", async () => {
     await page.getByRole("button", { name: "Settings (Ctrl+,)", exact: true }).click();
-    const dialog = page.getByRole("dialog", { name: "Appearance", exact: true });
+    const dialog = page.getByRole("dialog", { name: "Settings", exact: true });
     await dialog.waitFor();
     const bounds = await dialog.boundingBox();
     assert.ok(bounds.y > 0 && bounds.height < (await page.evaluate(() => innerHeight)));
-    await page.getByLabel("Reading width", { exact: true }).selectOption("0");
-    await dialog.getByRole("button", { name: "Aa Local", exact: true }).click();
+    await page.getByLabel("Reading width", { exact: true }).click();
+    await page.getByRole("option", { name: "Full width (default)", exact: true }).click();
+    await dialog.getByRole("radio", { name: "Aa Local", exact: true }).click();
     const select = page.getByLabel("Installed font", { exact: true });
-    await page.waitForFunction(() => document.querySelector("#local-font")?.options.length > 1);
-    const font = await select.locator("option").nth(1).getAttribute("value");
-    await select.selectOption(font);
-    assert.equal(await select.inputValue(), font);
-    assert.equal(await page.getByLabel("Reading width", { exact: true }).inputValue(), "0");
+    await select.click();
+    const installedFont = page.getByRole("option").filter({ hasNotText: "System default" }).first();
+    await installedFont.waitFor();
+    const font = await installedFont.innerText();
+    await installedFont.click();
+    assert.equal((await select.innerText()).trim(), font.trim());
+    assert.equal(
+      (await page.getByLabel("Reading width", { exact: true }).innerText()).trim(),
+      "Full width (default)",
+    );
     await shot("appearance-selected");
     await page.getByRole("button", { name: "Close settings", exact: true }).click();
     await page.waitForTimeout(400);
@@ -214,9 +223,16 @@ try {
   });
   await check("create-empty-folder", async () => {
     await page.getByRole("button", { name: "New folder", exact: true }).click();
-    await page.getByLabel("Folder path", { exact: true }).fill("Empty QA folder");
-    await page.getByRole("button", { name: "Create folder", exact: true }).click();
-    await page.locator(".folder-node summary").filter({ hasText: "Empty QA folder" }).waitFor();
+    const folderName = page.getByRole("textbox", {
+      name: "New folder name",
+      exact: true,
+    });
+    await folderName.fill("Empty QA folder");
+    await folderName.press("Enter");
+    await page
+      .locator(".folder-node .folder-trigger")
+      .filter({ hasText: "Empty QA folder" })
+      .waitFor();
     assert.deepEqual(await readdir(join(vault, "Empty QA folder")), []);
   });
   await check("rename-preserves-content", async () => {

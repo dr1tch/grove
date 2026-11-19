@@ -46,7 +46,8 @@ export function ExportDocument() {
       const article = element.querySelector(".md");
       if (!article) throw new Error("Export document did not render");
       const copy = article.cloneNode(true) as HTMLElement;
-      for (const control of copy.querySelectorAll("button,.document-outline")) control.remove();
+      for (const control of copy.querySelectorAll("button,.document-outline,.document-controls"))
+        control.remove();
       await window.folio.exportReady(copy.outerHTML, warnings);
     })().catch((error) => {
       if (live) setError(String(error));

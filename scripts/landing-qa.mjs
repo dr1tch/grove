@@ -11,7 +11,9 @@ const browser = await chromium.launch({ headless: true, channel: "chrome" });
 const errors = [];
 const failed = [];
 try {
-  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  const page = await browser.newPage({
+    viewport: { width: 1440, height: 1000 },
+  });
   page.on("pageerror", (error) => errors.push(String(error)));
   page.on("response", (response) => {
     if (response.status() >= 400) failed.push(`${response.status()} ${response.url()}`);
@@ -30,11 +32,20 @@ try {
       `Horizontal overflow at ${width}px`,
     );
     assert.equal(await page.getByRole("heading", { level: 1 }).count(), 1);
-    assert.equal(await page.locator("details").count(), 5);
+    assert.equal(await page.locator(".faq-item").count(), 5);
+    assert.equal(
+      await page
+        .getByRole("button", {
+          name: "Will it change my Obsidian vault?",
+          exact: true,
+        })
+        .getAttribute("aria-expanded"),
+      "true",
+    );
     await page.getByText("Can an agent edit without asking?", { exact: true }).click();
-    assert.equal(await page.locator("details[open]").count(), 1);
+    assert.equal(await page.locator('.faq-item[data-state="open"]').count(), 1);
     assert.match(
-      await page.locator("details[open]").innerText(),
+      await page.locator('.faq-item[data-state="open"]').innerText(),
       /only writes to your vault when you accept/,
     );
     await page.getByText("Will it change my Obsidian vault?", { exact: true }).click();
@@ -78,19 +89,36 @@ try {
       "Images must use the project subpath",
     );
     await page.getByRole("link", { name: "Grove home" }).first().click();
-    await page.screenshot({ path: resolve(screenshots, `${width}.png`), fullPage: true });
+    await page.screenshot({
+      path: resolve(screenshots, `${width}.png`),
+      fullPage: true,
+    });
   }
   await page.goto(target);
   await page.keyboard.press("Tab");
   assert.equal(await page.locator(":focus").innerText(), "Skip to content");
   await page.keyboard.press("Enter");
   assert.equal(new URL(page.url()).hash, "#main");
-  await page.locator("summary").nth(1).focus();
+  await page.locator(".faq-trigger").nth(1).focus();
   await page.keyboard.press("Enter");
   assert.equal(
-    await page.locator("details[open] summary").innerText(),
+    await page.locator('.faq-item[data-state="open"] .faq-trigger').innerText(),
     "Can an agent edit without asking?",
   );
+  await page.keyboard.press("ArrowDown");
+  assert.equal(await page.locator(":focus").innerText(), "What if a file changes elsewhere?");
+  await page.keyboard.press("Home");
+  assert.equal(await page.locator(":focus").innerText(), "Will it change my Obsidian vault?");
+  await page.keyboard.press("End");
+  assert.equal(await page.locator(":focus").innerText(), "What does it cost?");
+  await page.keyboard.press("Space");
+  assert.equal(await page.locator('.faq-item[data-state="open"]').count(), 1);
+  assert.equal(
+    await page.locator('.faq-item[data-state="open"] .faq-trigger').innerText(),
+    "What does it cost?",
+  );
+  await page.keyboard.press("Space");
+  assert.equal(await page.locator('.faq-item[data-state="open"]').count(), 0);
   await page.emulateMedia({ reducedMotion: "reduce" });
   assert.equal(
     await page

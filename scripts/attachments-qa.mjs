@@ -15,7 +15,7 @@ await writeFile(
   image,
   '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200"><rect width="300" height="200" fill="green"/></svg>',
 );
-await copyFile("/home/dr1tch/Documents/261032848.pdf", join(temp, "Receipt.pdf"));
+await copyFile(new URL("./fixtures/sample.pdf", import.meta.url), join(temp, "Receipt.pdf"));
 await writeFile(join(temp, "data.bin"), Buffer.from([0, 1, 2, 3]));
 let app;
 try {
@@ -103,7 +103,7 @@ try {
       console.log("Paste diagnostic:", await page.locator("body").innerText());
       throw error;
     });
-  await page.getByRole("button", { name: "Preview", exact: true }).click();
+  await page.getByRole("radio", { name: "Preview", exact: true }).click();
   await page.locator(".attachment-view canvas").waitFor();
   await page.waitForFunction(() =>
     [...document.querySelectorAll(".preview img")].some((img) => img.naturalWidth > 0),

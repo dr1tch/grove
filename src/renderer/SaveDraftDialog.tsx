@@ -1,3 +1,5 @@
+import { Dialog } from "./Dialog";
+import { SelectField } from "./Controls";
 import { useState } from "react";
 import { X } from "lucide-react";
 
@@ -27,72 +29,59 @@ export function SaveDraftDialog({
   const [error, setError] = useState("");
   const file = /\.[^.]+$/.test(name.trim()) ? name.trim() : `${name.trim()}.md`;
   return (
-    <div
-      className="modal-backdrop"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) cancel();
-      }}
-      onKeyDown={(e) => {
-        if (e.key === "Escape") cancel();
-      }}
-    >
-      <section className="modal" role="dialog" aria-label="Save note">
-        <header>
-          <h2>{closing ? "Save this note before closing?" : "Save note"}</h2>
-          <button aria-label="Close dialog" onClick={cancel}>
-            <X />
+    <Dialog className="modal" label="Save note" close={cancel} dismissible={!busy}>
+      <header>
+        <h2>{closing ? "Save this note before closing?" : "Save note"}</h2>
+        <button aria-label="Close dialog" onClick={cancel} disabled={busy}>
+          <X />
+        </button>
+      </header>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          setBusy(true);
+          setError("");
+          save(name, folder).catch((reason) => {
+            setError(String(reason).replace(/^Error: /, ""));
+            setBusy(false);
+          });
+        }}
+      >
+        <label htmlFor="draft-name">Name</label>
+        <input
+          id="draft-name"
+          autoFocus
+          required
+          value={name}
+          disabled={busy}
+          onFocus={(e) => e.currentTarget.select()}
+          onChange={(e) => setName(e.target.value)}
+        />
+        <label htmlFor="draft-folder">Folder</label>
+        <SelectField
+          id="draft-folder"
+          value={folder}
+          disabled={busy}
+          onValueChange={setFolder}
+          options={[
+            { value: "", label: vaultName },
+            ...folders.map((path) => ({ value: path, label: path })),
+          ]}
+        />
+        <p className="settings-help">Saves as {folder ? `${folder}/${file}` : file}</p>
+        {error && <small className="danger-text">{error}</small>}
+        <footer>
+          <button type="button" onClick={discard} disabled={busy}>
+            Discard
           </button>
-        </header>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            setBusy(true);
-            setError("");
-            save(name, folder).catch((reason) => {
-              setError(String(reason).replace(/^Error: /, ""));
-              setBusy(false);
-            });
-          }}
-        >
-          <label htmlFor="draft-name">Name</label>
-          <input
-            id="draft-name"
-            autoFocus
-            required
-            value={name}
-            disabled={busy}
-            onFocus={(e) => e.currentTarget.select()}
-            onChange={(e) => setName(e.target.value)}
-          />
-          <label htmlFor="draft-folder">Folder</label>
-          <select
-            id="draft-folder"
-            value={folder}
-            disabled={busy}
-            onChange={(e) => setFolder(e.target.value)}
-          >
-            <option value="">{vaultName}</option>
-            {folders.map((path) => (
-              <option key={path} value={path}>
-                {path}
-              </option>
-            ))}
-          </select>
-          <p className="settings-help">Saves as {folder ? `${folder}/${file}` : file}</p>
-          {error && <small className="danger-text">{error}</small>}
-          <footer>
-            <button type="button" onClick={discard} disabled={busy}>
-              Discard
-            </button>
-            <button type="button" onClick={cancel} disabled={busy}>
-              Cancel
-            </button>
-            <button type="submit" className="primary" disabled={busy || !name.trim()}>
-              Save
-            </button>
-          </footer>
-        </form>
-      </section>
-    </div>
+          <button type="button" onClick={cancel} disabled={busy}>
+            Cancel
+          </button>
+          <button type="submit" className="primary" disabled={busy || !name.trim()}>
+            Save
+          </button>
+        </footer>
+      </form>
+    </Dialog>
   );
 }

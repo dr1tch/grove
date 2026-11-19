@@ -1,5 +1,14 @@
 import { expect, it } from "vite-plus/test";
-import { cleanLayout, renameLayout, pruneLayout } from "./panes";
+import { cleanLayout, cleanView, renameLayout, pruneLayout } from "./panes";
+it("keeps document zoom and fit width and clamps invalid saved zoom", () => {
+  expect(cleanView({ zoom: 1.4, fitWidth: true })).toMatchObject({ zoom: 1.4, fitWidth: true });
+  expect(cleanView({ zoom: Infinity, fitWidth: "yes" })).toMatchObject({
+    zoom: 1,
+    fitWidth: false,
+  });
+  expect(cleanView({ zoom: 0.01 }).zoom).toBe(0.5);
+  expect(cleanView({ zoom: 99 }).zoom).toBe(3);
+});
 it("migrates old tabs and clamps invalid persisted positions", () => {
   const layout = cleanLayout(null, [{ path: "note.md", mode: "edit", pinned: true }], "note.md");
   expect(layout.panes[0].tabs).toEqual(["note.md"]);

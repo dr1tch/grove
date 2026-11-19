@@ -4,23 +4,27 @@ import type { GitHubErrorKind, RepoRef } from "./types";
 
 export class GitHub {
   #token: string;
+  #controller = new AbortController();
   #fetch: typeof fetch;
   #base: string;
   constructor(ref: RepoRef, token: string, transport: typeof fetch = fetch) {
     rootOf(ref);
     if (!token || /\s/.test(token)) throw new GitHubError("auth", "Enter a valid GitHub token.");
     this.#token = token;
-    this.#fetch = transport;
+    this.#fetch = (input, init) => transport(input, init);
     this.#base = `/repos/${encodeURIComponent(ref.owner)}/${encodeURIComponent(ref.repo)}`;
   }
   async request(
     path: string,
     init: { method?: string; body?: unknown; raw?: boolean } = {},
   ): Promise<Response> {
+    if (!this.#token || this.#controller.signal.aborted)
+      throw new GitHubError("auth", "Sign in first");
     const url = new URL(`https://api.github.com${this.#base}${path}`);
     let response: Response;
     try {
       response = await this.#fetch(url.toString(), {
+        signal: this.#controller.signal,
         method: init.method ?? "GET",
         redirect: "error",
         credentials: "omit",
@@ -81,6 +85,10 @@ export class GitHub {
       );
     }
     return response;
+  }
+  dispose(): void {
+    this.#token = "";
+    this.#controller.abort();
   }
   async json(path: string, init?: { method?: string; body?: unknown }): Promise<unknown> {
     const response = await this.request(path, init);

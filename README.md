@@ -30,12 +30,15 @@ The package is named `folio` and installs the Grove app. Installers (.deb and Ap
 
 ### Writing and reading
 
-- Markdown editor with autosave, split editing and a GitHub-style preview: tables, tasks, wikilinks, images, Mermaid diagrams and Excalidraw embeds.
+- Markdown editor with autosave, split editing and fully formatted typing in Preview on desktop and web: tables, tasks, wikilinks, images, Mermaid diagrams and Excalidraw embeds. Embedded Markdown supports inline formatted editing too. Properties, HTML and unsupported blocks retain their source; edit those in source mode.
 - Formatting toolbar for headings, bold, italic, quotes, code, links, lists and tasks, with undo/redo and Ctrl+B/Ctrl+I shortcuts. Insert from vault reuses existing media, drawings and saved Mermaid source without copying files.
+- Choose **Live Preview** from the Preview toolbar to reveal Markdown syntax where you edit while keeping the rest formatted. Choose **Formatted** to keep rich formatting while typing. Both styles work in desktop, web and Split mode; the app remembers your choice.
+- Checklists stay compact and keep their checkbox visible while you edit the text. Enter continues the list, Enter on an empty item leaves it, and Tab/Shift+Tab nest and unnest items.
+- Edit table cells in Preview and right-click for row, column and alignment actions. Links, media references and source blocks also have right-click actions. Grove keeps its existing appearance; controls appear on demand, and removing an embed leaves the file intact.
 - Real Excalidraw editor. Drawings stay in their original JSON or Obsidian Excalidraw format.
 - Code files (Vue, JavaScript, TypeScript and more) with syntax colours and formatted previews. CSV and TSV show as tables.
 - HTML and XHTML source beside a safe preview with scripts and network disabled.
-- Reading widths, installed fonts, light, dark and system themes, and six accent colours.
+- Full-width writing by default, optional fixed reading widths, installed fonts, light, dark and system themes, and six accent colours.
 
 ### Files and media
 
@@ -47,7 +50,7 @@ The package is named `folio` and installs the Grove app. Installers (.deb and Ap
 
 ### Organising
 
-- Tabs with pins, previews, reopen closed tab and drag to reorder. Two panes side by side.
+- Tabs with pins, previews, reopen the 20 most recent closed tabs and drag to reorder. Two panes side by side. Up to 32 inactive editor histories are retained; recovery drafts are kept independently.
 - Sync a vault between computers through a private GitHub repository (Settings > Sync).
 - Ctrl+K file switcher, Ctrl+Shift+F search across notes, code and PDF text, Ctrl+F in the current file.
 - Backlinks, broken-link checks and renames that update links.
@@ -74,19 +77,21 @@ vp run build
 vp run package
 ```
 
-Install the local package with `sudo apt install ./release/folio_<version>_amd64.deb`. Launch Grove from the app grid; Ubuntu's AppArmor sandbox needs the installed package, so do not run an unpacked build with `--no-sandbox`.
+Install the local package with `sudo apt install ./release/grove.deb`. The deb installer is always named `grove.deb`; AppImage filenames use `grove-<version>-<arch>.AppImage`. Launch Grove from the app grid; Ubuntu's AppArmor sandbox needs the installed package, so do not run an unpacked build with `--no-sandbox`.
 
-UI checks run the real app headless, for example `xvfb-run -a node scripts/smoke.mjs` or `xvfb-run -a node scripts/visual-qa.mjs`. `scripts/readme-screenshot.mjs` regenerates the README screenshots from a demo vault. Some QA scripts expect sample PDFs at local paths; change those paths to your own files.
+UI checks run the real app headless, for example `xvfb-run -a node scripts/smoke.mjs` or `xvfb-run -a node scripts/visual-qa.mjs`. `scripts/readme-screenshot.mjs` regenerates the README screenshots from a demo vault. PDF checks use the synthetic fixture in `scripts/fixtures/sample.pdf`.
 
 ### Workspaces
 
 The root package remains the Electron app. `packages/core` owns platform-independent file types, classification, icon semantics, links, Markdown formatting, attachments and conflict naming. Desktop imports in `src/shared` re-export those implementations for compatibility. New consumers use the explicit `@grove/core/types`, `/files`, `/file-icons`, `/tree`, `/links`, `/markdown-format`, `/vault-insert`, `/attachments` and `/conflicts` exports. These private packages export TypeScript source for application bundlers; they are not published libraries.
 
-`packages/github-vault` provides the shared SHA-conditional GitHub store, durable text-edit queue and safe conflict copies for future web/phone clients. `apps/web` currently contains only its IndexedDB storage adapter. There is no browser UI or native integration yet, and desktop sync still uses its existing Git CLI implementation. See [the shared vault contract and limits](packages/github-vault/README.md). Run `vp test --run packages/github-vault/src`, the package/web typecheck tasks, and `node scripts/web-cache-qa.mjs` to verify it. The browser QA uses real isolated Chromium storage against a fake repository, never a private vault.
+`packages/github-vault` provides the shared SHA-conditional GitHub store, durable text-edit queue, cloud store and safe conflict copies. `apps/web` uses the desktop React renderer with IndexedDB, optional Supabase accounts/cloud storage and GitHub access. Account saves repository/branch shortcuts across devices; GitHub App authorization is separate from Grove sign-in, with tokens held in the browser session. See [GitHub App setup](docs/github-app-setup.md) before enabling repository connections. The GitHub App and its hosted function still need activation. Desktop sync continues to use its Git CLI implementation. See [the shared vault contract and limits](packages/github-vault/README.md). Run `vp test --run`, the package/web typecheck tasks, and `node scripts/web-cache-qa.mjs` to verify shared storage. `scripts/web-accounts-qa.mjs` tests local Supabase accounts and simulated GitHub App access with the fixture client ID/slug, never private notes.
 
-Run `vp check`, `vp test --run` and `vp run build` from the root. Check the core package in isolation with `vp exec tsc --noEmit -p packages/core/tsconfig.json`. Its TypeScript environment excludes Node and browser globals. Vite+ discovers tests under both `src/` and `packages/`. See [the client plan](docs/superpowers/plans/2026-11-12-grove-clients-workspaces.md).
+Run `vp check`, `vp test --run` and `vp run build` from the root. Check the core package in isolation with `vp exec tsc --noEmit -p packages/core/tsconfig.json`. Its TypeScript environment excludes Node and browser globals. Vite+ discovers tests under `src/`, `packages/` and the web/mobile workspaces. See [the client plan](docs/superpowers/plans/2026-11-12-grove-clients-workspaces.md).
 
-`apps/landing` is the static React/Vite+ landing page. Build it with `vp run '@grove/landing#build'` and check its types with `vp run '@grove/landing#typecheck'`. It outputs to `out/landing` using the `/grove/` project base path. The desktop package includes only `out/main`, `out/preload` and `out/renderer`, so it excludes the landing build. The site uses local fonts, exact Grove logo vectors and a real desktop screenshot. Its phone image is labelled as a design preview; phone and browser apps are not implemented yet.
+`apps/mobile` contains the Expo/React Native phone app: a native Files shell, one document at a time, Markdown editor/reader, formatting toolbar, safe draft/save/recovery, SQLite cache and SecureStore credentials. Run `pnpm --filter @grove/mobile build` to export Android/iOS/browser JavaScript bundles. [Mobile setup and limits](apps/mobile/README.md) describe native configuration, browser-preview checks and device verification gates. Attachment viewers and signed phone builds remain unfinished.
+
+`apps/landing` is the static React/Vite+ landing page. Build it with `vp run '@grove/landing#build'` and check its types with `vp run '@grove/landing#typecheck'`. It outputs to `out/landing` using the `/grove/` project base path. The desktop package includes only `out/main`, `out/preload` and `out/renderer`, so it excludes the landing/mobile build. The site uses local fonts, exact Grove logo vectors and a real desktop screenshot. Its phone image remains labelled as a design preview until the native app is released.
 
 Start a local landing preview through your registered `devport` command, for example from `apps/landing`: `~/.claude/scripts/devport run landing -- vp preview --host 127.0.0.1 --port '{port}' --strictPort`. Register an unused checkout offset and the `landing` app in `devport` if needed. Then run `GROVE_LANDING_URL=http://127.0.0.1:<port>/grove/ node scripts/landing-qa.mjs` from the root. The QA script uses installed Google Chrome headlessly and checks responsive layouts, keyboard navigation, FAQs, assets and release/source links. Building the landing page does not deploy it or change the APT site.
 

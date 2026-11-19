@@ -8,18 +8,18 @@ const temp = await mkdtemp(join(tmpdir(), "grove-panes-")),
   profile = join(temp, "profile");
 await mkdir(vault);
 await mkdir(profile);
-await writeFile(join(profile, "state.json"), "{}");
+await writeFile(join(profile, "state.json"), JSON.stringify({ vault }));
 await writeFile(join(vault, "Note.md"), "# Notes\n\n" + "A paragraph for reading.\n\n".repeat(100));
 await writeFile(join(vault, "Other.md"), "# Other\n");
-await copyFile("/home/dr1tch/Documents/261032848.pdf", join(vault, "Receipt.pdf"));
+await copyFile(new URL("./fixtures/sample.pdf", import.meta.url), join(vault, "Receipt.pdf"));
 let app;
 try {
   app = await electron.launch({
-    args: ["--ozone-platform=x11", ".", `--user-data-dir=${profile}`],
+    args: [".", "--ozone-platform=x11", `--user-data-dir=${profile}`],
   });
   let page = await app.firstWindow();
   page.setDefaultTimeout(15000);
-  await page.locator('.file-row[data-path="package.json"]').waitFor();
+  await page.locator(".app").waitFor();
   await app.evaluate(
     ({ app }, root) => app.emit("second-instance", {}, ["electron", "app", root]),
     vault,
@@ -30,11 +30,11 @@ try {
   await page.waitForFunction(() => document.querySelectorAll(".document-pane").length === 2);
   const right = page.locator('.document-pane[data-pane="secondary"]'),
     left = page.locator('.document-pane[data-pane="primary"]');
-  await right.getByRole("button", { name: "Edit", exact: true }).click();
+  await right.getByRole("radio", { name: "Edit", exact: true }).click();
   await right.locator(".cm-content").click();
   await page.keyboard.press("Control+End");
   await page.keyboard.type("Shared edit");
-  await left.getByRole("button", { name: "Edit", exact: true }).click();
+  await left.getByRole("radio", { name: "Edit", exact: true }).click();
   await left.locator(".cm-content").click();
   await page.keyboard.press("Control+End");
   await page.waitForFunction(() =>
@@ -82,7 +82,7 @@ try {
   assert.ok((await readFile(join(vault, "Note.md"), "utf8")).includes("Pending edit"));
   const beforeReview = await readFile(join(vault, "Note.md"), "utf8");
   await page.getByRole("button", { name: "Document menu", exact: true }).click();
-  await page.getByRole("button", { name: /^Version history/ }).click();
+  await page.getByRole("menuitem", { name: /^Version history/ }).click();
   await page.getByRole("button", { name: "Review version", exact: true }).last().click();
   await page.getByRole("dialog", { name: "Review saved version" }).waitFor();
   assert.equal(

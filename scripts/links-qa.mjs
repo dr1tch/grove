@@ -11,7 +11,7 @@ await mkdir(profile);
 await writeFile(join(profile, "state.json"), "{}");
 await writeFile(join(vault, "Note.md"), "# Notes\n\n" + "A paragraph for reading.\n\n".repeat(100));
 await writeFile(join(vault, "Other.md"), "# Other\n");
-await copyFile("/home/dr1tch/Documents/261032848.pdf", join(vault, "Receipt.pdf"));
+await copyFile(new URL("./fixtures/sample.pdf", import.meta.url), join(vault, "Receipt.pdf"));
 await writeFile(join(vault, "Note.md"), "[Other](Other.md)");
 let app;
 try {

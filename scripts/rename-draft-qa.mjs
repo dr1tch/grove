@@ -42,7 +42,7 @@ try {
     vault,
   );
   await page.locator('.file-tree .file-row[data-path="source.md"]').click();
-  await page.getByRole("button", { name: "Edit", exact: true }).first().click();
+  await page.getByRole("radio", { name: "Edit", exact: true }).first().click();
   await page.getByRole("button", { name: "Backlinks and broken links", exact: true }).click();
   await page.getByRole("button", { name: "Resume link updates", exact: true }).waitFor();
   await app.evaluate(({ ipcMain }) => {

@@ -2,6 +2,77 @@
 
 All notable changes to Grove. Versions match the GitHub release tags. The apt package is named `folio`.
 
+## Unreleased
+
+- Live Preview uses reading colors for headings, list text and inline code while preserving the source editor's syntax colors.
+- Cloud path mutations serialize per account to prevent concurrent file/folder shadowing. Cross-tab sign-out retires the previous vault without trapping private content behind an unfinished-draft leave prompt.
+
+- Phone account activation is prepared with GitHub PKCE and protected email/password sign-in, a separate CAPTCHA surface with expiry/retry handling, and combined website/APT deployment. Hosted activation remains pending.
+- Cloud binary transfers use ArrayBuffer uploads and Response downloads for React Native Blob compatibility.
+
+## 0.5.7 (2026-11-16)
+
+### Changed
+
+- Standard controls across desktop and web now use Radix Primitives: dialogs, menus, tooltips, selects, checkboxes, media sliders, tabs, toggles, collapsible panels and toolbars. Grove's existing styling and editor behavior are preserved. The landing FAQ uses Radix Accordion.
+- Web sign-in shows GitHub and email/password together, with account creation, password reset and manual token access retained.
+- Editor context menus now use Radix Primitives with Grove's existing appearance. Row and Column open nested submenus on hover or keyboard input, with typeahead, focus navigation, dismissal and viewport positioning managed by Radix.
+- Menu items preserve editor selection, stale-content guards, undo and dialog focus. Root menus and submenus remain available inside fullscreen views.
+
+### Fixed
+
+- Opening a link editor no longer rebuilds formatted editor blocks because of copy-status accessibility announcements.
+- Rapid media slider changes update immediately. Crowded document tabs remain selectable when clicking the gap beside their labels.
+
+## 0.5.6 (2026-11-16)
+
+### Added
+
+- Edit table cells directly in both Preview styles. Right-click a cell to insert/delete rows or columns, align a column or remove a table. The existing toolbar inserts tables and controls formatting and undo.
+- Right-click links, images, attachments and source blocks for item actions. Edit link labels/addresses/titles, wiki aliases and media references; remove an embed without deleting its file. Code language, diagram source and protected source blocks remain editable in place.
+
+### Fixed
+
+- Compact paragraph, list and checklist spacing in both Preview styles. Paragraph margins no longer add extra height inside task rows, and nested lists stay compact.
+- Live Preview keeps checkboxes visible while editing task text. Selecting the Markdown prefix still reveals its source.
+- Tab and Shift+Tab nest and unnest items in the Markdown editor using its existing indentation commands. Enter continues checklists and leaves an empty item.
+
+## 0.5.5 (2026-11-13)
+
+### Added
+
+- Choose Live Preview in the Preview toolbar on desktop and web. Markdown syntax appears on the editing line while other lines stay formatted. The existing Formatted style remains available, and the choice is remembered.
+- Edit code fences, tables, media links and properties in place by revealing their source. Live Preview uses the source editor's toolbar, undo/redo, attachments, saving and Split mode, preserving unchanged Markdown and CRLF line endings.
+
+## 0.5.4 (2026-11-13)
+
+### Added
+
+- Edit notes directly in fully formatted Preview on desktop and web, with formatting, undo/redo and normal saving. Embedded Markdown can also be edited while formatted, inline in its block. Code and diagram source editors open inline.
+- Preserve unchanged source sections, properties, comments, wiki references and duplicate code fences while editing formatted text. HTML and unsupported blocks stay protected; use Edit for their source. Changed sections may use normalized Markdown formatting.
+
+### Changed
+
+- Full width is the default for new reading preferences. Source editing uses the available pane width, and short formatted notes fill the preview height. Explicit saved reading widths remain supported.
+
+### Fixed
+
+- Split mode keeps the rich editor mounted and batches source preview refreshes, keeping typing and saving responsive. Stale previews cannot overwrite newer source, and external refreshes reset embedded editing histories.
+- File-tree rows skip unrelated typing and scroll updates. Cold backlinks use bounded secure batch reads and cache parsed references.
+- Inactive editor histories are limited to 32 and recently closed tabs to 20, preserving active values and recovery drafts.
+
+## 0.5.3 (2026-11-13)
+
+### Added
+
+- Fenced code and Markdown blocks have zoom, reset, fit width and fullscreen controls. Markdown blocks can render a formatted preview. Edit opens a focused block editor with Preview, Apply and Cancel; applying updates only the verified source block. Unapplied edits block preview navigation and window close/reload. Top-level fenced blocks are editable; nested and indented code remains read-only.
+
+## 0.5.2 (2026-11-13)
+
+### Added
+
+- Document view controls in Edit, Preview and Split: zoom out/in (50% to 300%), reset to 100%, fit width and fullscreen. Zoom and fit width are remembered per document pane. Fullscreen keeps the mode switcher available in desktop and web.
+
 ## 0.5.1 (2026-11-12)
 
 ### Added

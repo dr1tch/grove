@@ -1,6 +1,6 @@
 // Session-test adapter; the same transaction contract is checked against Chromium IndexedDB.
 import type { Document } from "@grove/core/types";
-import { CacheConflict, pendingDocument } from "./cache";
+import { ackedDocument, CacheConflict, pendingDocument, uploadedFrom } from "./cache";
 import type { CachedAsset, PendingEdit, RemoteUpdate, VaultCache } from "./cache";
 import type { VaultEntry } from "./types";
 export class MemoryCache implements VaultCache {
@@ -58,12 +58,14 @@ export class MemoryCache implements VaultCache {
     const previous = this.edits.get(path),
       saved = this.documents.get(path);
     const current = previous ? pendingDocument(previous) : saved;
-    if (expectedHash !== undefined && expectedHash !== (current?.hash ?? ""))
+    const uploaded =
+      !previous && expectedHash !== undefined && uploadedFrom(saved) === expectedHash;
+    if (expectedHash !== undefined && !uploaded && expectedHash !== (current?.hash ?? ""))
       throw new CacheConflict(current ?? { path, hash: "", content: "", modified: 0 });
     const edit = {
       path,
       content,
-      baseSha: previous?.baseSha ?? baseSha,
+      baseSha: previous?.baseSha ?? (uploaded ? saved!.hash : baseSha),
       revision: `local:${crypto.randomUUID()}`,
     };
     this.edits.set(path, edit);
@@ -73,7 +75,12 @@ export class MemoryCache implements VaultCache {
     const current = this.edits.get(path),
       saved = this.documents.get(path);
     if (remote && (!saved || saved.hash === remote.baseSha || current?.baseSha === remote.baseSha))
-      this.documents.set(path, structuredClone(remote.document));
+      this.documents.set(
+        path,
+        structuredClone(
+          ackedDocument(remote, current?.revision === revision ? revision : undefined),
+        ),
+      );
     if (!current) return false;
     if (current.revision === revision) {
       this.edits.delete(path);

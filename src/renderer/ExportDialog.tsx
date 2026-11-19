@@ -1,3 +1,5 @@
+import { Dialog } from "./Dialog";
+import { SelectField, CheckField } from "./Controls";
 import { useEffect, useRef, useState } from "react";
 import type { ExportRequest, PreparedExport } from "../shared/types";
 export function ExportDialog({
@@ -13,8 +15,7 @@ export function ExportDialog({
   close: () => void;
   notify: (message: string) => void;
 }) {
-  const dialog = useRef<HTMLDialogElement>(null),
-    preparedRef = useRef<PreparedExport | undefined>(undefined);
+  const preparedRef = useRef<PreparedExport | undefined>(undefined);
   const [snapshot] = useState({ path, content }),
     [format, setFormat] = useState<ExportRequest["format"]>("html"),
     [theme, setTheme] = useState<ExportRequest["theme"]>("light"),
@@ -23,7 +24,6 @@ export function ExportDialog({
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   useEffect(() => {
-    dialog.current!.showModal();
     return () => {
       void window.folio.cancelExport(preparedRef.current?.id || "", root).catch(() => {});
     };
@@ -36,18 +36,7 @@ export function ExportDialog({
     setOmissions(false);
   };
   return (
-    <dialog
-      ref={dialog}
-      className="export-dialog workspace-dialog"
-      aria-label="Export note"
-      onCancel={(e) => {
-        e.preventDefault();
-        close();
-      }}
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) close();
-      }}
-    >
+    <Dialog className="export-dialog workspace-dialog" label="Export note" close={close}>
       <section>
         <header>
           <h2>Export {path.split("/").pop()}</h2>
@@ -61,33 +50,35 @@ export function ExportDialog({
         </p>
         <label>
           Format{" "}
-          <select
+          <SelectField
             aria-label="Export format"
             value={format}
             disabled={busy}
-            onChange={(e) => {
+            onValueChange={(value) => {
               reset();
-              setFormat(e.target.value as ExportRequest["format"]);
+              setFormat(value as ExportRequest["format"]);
             }}
-          >
-            <option value="html">Self-contained HTML</option>
-            <option value="pdf">PDF</option>
-          </select>
+            options={[
+              { value: "html", label: "Self-contained HTML" },
+              { value: "pdf", label: "PDF" },
+            ]}
+          />
         </label>
         <label>
           Theme{" "}
-          <select
+          <SelectField
             aria-label="Export theme"
             value={theme}
             disabled={busy}
-            onChange={(e) => {
+            onValueChange={(value) => {
               reset();
-              setTheme(e.target.value as ExportRequest["theme"]);
+              setTheme(value as ExportRequest["theme"]);
             }}
-          >
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
-          </select>
+            options={[
+              { value: "light", label: "Light" },
+              { value: "dark", label: "Dark" },
+            ]}
+          />
         </label>
         {error && <p role="alert">{error}</p>}
         {prepared && (
@@ -101,12 +92,8 @@ export function ExportDialog({
                   ))}
                 </ul>
                 <label>
-                  <input
-                    type="checkbox"
-                    checked={omissions}
-                    onChange={(e) => setOmissions(e.target.checked)}
-                  />{" "}
-                  Export without the listed missing or oversized assets
+                  <CheckField checked={omissions} onCheckedChange={setOmissions} /> Export without
+                  the listed missing or oversized assets
                 </label>
               </>
             )}
@@ -160,6 +147,6 @@ export function ExportDialog({
           )}
         </footer>
       </section>
-    </dialog>
+    </Dialog>
   );
 }

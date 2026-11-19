@@ -1,4 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Tabs, ToggleGroup } from "radix-ui";
+import { Dialog } from "./Dialog";
+import { CheckField } from "./Controls";
+import { Dropdown, DropdownItem } from "./Dropdown";
+import { ItemMenu, ItemMenuItem } from "./ItemMenu";
 import {
   PanelLeft,
   ChevronLeft,
@@ -40,6 +45,7 @@ import {
   type TrashItem,
   type Version,
 } from "../shared/types";
+import { readBrowserDrafts, writeBrowserDrafts } from "./browser-drafts";
 import { DocumentPane } from "./DocumentPane";
 import { QuickSwitcher } from "./QuickSwitcher";
 import { SearchPanel } from "./SearchPanel";
@@ -74,11 +80,12 @@ const defaults: Settings = {
   accent: "emerald",
   font: "serif",
   fontSize: 14,
-  readingWidth: 680,
+  readingWidth: 0,
 };
 const editable = (path: string, kind = kindOf(path)) =>
   ["markdown", "text", "drawing", "unsupported"].includes(kind);
 const name = (path: string) => path.split("/").pop()?.replace(/\.md$/, "") || path;
+const vaultName = (root: string) => (root.startsWith("cloud:") ? "Grove cloud" : name(root));
 // A new note lives only in its tab until the user saves it; its name is its first heading.
 const DRAFT = "draft://";
 const isDraft = (path: string) => path.startsWith(DRAFT);
@@ -88,7 +95,12 @@ const tabName = (t: { path: string; value: string }) =>
 const savedTabs = (tabs: TabState[]) =>
   tabs
     .filter((t) => !isDraft(t.path))
-    .map(({ path, mode, pinned, preview }) => ({ path, mode, pinned, preview }));
+    .map(({ path, mode, pinned, preview }) => ({
+      path,
+      mode,
+      pinned,
+      preview,
+    }));
 const savedLayout = (layout: WorkspaceLayout): WorkspaceLayout => ({
   ...layout,
   panes: layout.panes.map((p) => ({
@@ -114,7 +126,8 @@ function Button({
     </Tooltip>
   );
 }
-export function App() {
+export function App({ account }: { account?: React.ReactNode } = {}) {
+  const web = window.folio.platform === "web";
   const [root, setRoot] = useState("");
   const [entries, setEntries] = useState<Entry[]>([]);
   const [tabs, setTabs] = useState<Tab[]>([]);
@@ -158,7 +171,10 @@ export function App() {
                 ...p,
                 views: {
                   ...p.views,
-                  [path]: { ...(p.views[path] || { mode: "preview" }), ...view },
+                  [path]: {
+                    ...(p.views[path] || { mode: "preview" }),
+                    ...view,
+                  },
                 },
               }
             : p,
@@ -242,7 +258,7 @@ export function App() {
     setContentSearch(undefined);
   }, [root]);
   const [renamePlan, setRenamePlan] = useState<RenamePlan>();
-  const [updateLinks, setUpdateLinks] = useState(true);
+  const [updateLinks, setUpdateLinks] = useState(!web);
   const [renameBusy, setRenameBusy] = useState(false);
   const renameContext = useRef({ fileAction, newName });
   renameContext.current = { fileAction, newName };
@@ -272,7 +288,10 @@ export function App() {
   const dark = settings.theme === "dark" || (settings.theme === "system" && darkOS);
   const currentDocument = tabs.find((t) => t.path === active);
   const tab = currentDocument
-    ? { ...currentDocument, mode: activePane.views[active]?.mode || currentDocument.mode }
+    ? {
+        ...currentDocument,
+        mode: activePane.views[active]?.mode || currentDocument.mode,
+      }
     : undefined;
   const originalEntry = entries.find((e) => e.path === active) || {
     path: active,
@@ -443,7 +462,11 @@ export function App() {
       );
       if (draft && typeof draft.value === "string" && typeof draft.hash === "string") {
         value = draft.value;
-        base = { ...doc, content: draft.original ?? doc.content, hash: draft.hash };
+        base = {
+          ...doc,
+          content: draft.original ?? doc.content,
+          hash: draft.hash,
+        };
       }
     } catch {}
     return {
@@ -469,6 +492,7 @@ export function App() {
         const existing = live.current.tabs.find((t) => t.path === path);
         if (existing) {
           setActive(path, paneId);
+          if (web && matchMedia("(max-width: 750px)").matches) setSidebar(false);
           if (pin) setTabs((ts) => ts.map((t) => (t.path === path ? { ...t, preview: false } : t)));
           return;
         }
@@ -492,6 +516,7 @@ export function App() {
           return next;
         });
         setActive(path, paneId);
+        if (web && matchMedia("(max-width: 750px)").matches) setSidebar(false);
       } catch (e) {
         notify(String(e));
       }
@@ -529,7 +554,13 @@ export function App() {
     if (live.current.root !== origin) return;
     updateView(paneId, hit.path, {
       mode: hit.page ? "preview" : "edit",
-      find: { id: crypto.randomUUID(), query, from: hit.from, to: hit.to, page: hit.page },
+      find: {
+        id: crypto.randomUUID(),
+        query,
+        from: hit.from,
+        to: hit.to,
+        page: hit.page,
+      },
     });
   };
   const restoreWorkspace = useCallback(
@@ -555,6 +586,13 @@ export function App() {
       const docs = results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
       if (docs.length !== paths.length)
         notify("Some files could not be reopened. Recovery drafts are kept.");
+      const drafts = web ? await readBrowserDrafts(localStorage, vault.root) : [];
+      docs.push(...drafts);
+      if (drafts.length) {
+        restoredLayout.panes[0].tabs.push(...drafts.map((draft) => draft.path));
+        restoredLayout.panes[0].active = drafts[drafts.length - 1].path;
+        for (const draft of drafts) restoredLayout.panes[0].views[draft.path] = { mode: "edit" };
+      }
       live.current.tabs = docs;
       setTabs(docs);
       updateLayout(() =>
@@ -591,7 +629,7 @@ export function App() {
         setSettings({ ...defaults, ...state.settings });
         setSidebar(state.sidebar ?? true);
         setSidebarWidth(state.sidebarWidth ?? 268);
-        setAssistant(state.assistant ?? false);
+        setAssistant(!web && (state.assistant ?? false));
         const vault = await refresh();
         if (vault) {
           live.current.root = vault.root;
@@ -660,6 +698,23 @@ export function App() {
     entries,
   ]);
 
+  useEffect(() => {
+    if (!web || !ready || !root) return;
+    const persist = () => {
+      try {
+        writeBrowserDrafts(localStorage, root, live.current.tabs);
+      } catch {
+        notify("Draft recovery storage is full. Save your new note before leaving.");
+      }
+    };
+    persist();
+    window.addEventListener("pagehide", persist);
+    return () => {
+      persist();
+      window.removeEventListener("pagehide", persist);
+    };
+  }, [web, ready, root, tabs, notify]);
+
   useEffect(
     () =>
       window.folio.onOpen((path) => {
@@ -686,7 +741,7 @@ export function App() {
               ts.map((t) =>
                 live.current.root !== origin || t.id !== current.id
                   ? t
-                  : t.value === t.doc.content
+                  : t.value === t.doc.content || (web && disk.content === t.value)
                     ? {
                         ...t,
                         doc: disk,
@@ -694,8 +749,14 @@ export function App() {
                         disk: undefined,
                         unavailable: undefined,
                       }
-                    : disk.hash === t.doc.hash
-                      ? { ...t, unavailable: undefined }
+                    : disk.hash === t.doc.hash || (web && disk.content === t.doc.content)
+                      ? {
+                          ...t,
+                          doc: disk,
+                          unavailable: undefined,
+                          // Web: GitHub now holds our own base, so a stale banner is not a conflict.
+                          ...(web && disk.content === t.doc.content ? { disk: undefined } : {}),
+                        }
                       : { ...t, disk, unavailable: undefined },
               ),
             ),
@@ -721,7 +782,11 @@ export function App() {
           try {
             localStorage.setItem(
               `folio:draft:${root}:${active}`,
-              JSON.stringify({ value, hash: t.doc.hash, original: t.doc.content }),
+              JSON.stringify({
+                value,
+                hash: t.doc.hash,
+                original: t.doc.content,
+              }),
             );
           } catch {
             notify("Recovery storage is full. Save a copy before closing.");
@@ -776,7 +841,13 @@ export function App() {
                 original: result.document.content,
               }),
             );
-          return { ...t, doc: result.document, disk: undefined, error: undefined, saving: false };
+          return {
+            ...t,
+            doc: result.document,
+            disk: undefined,
+            error: undefined,
+            saving: false,
+          };
         }),
       );
     } catch (e) {
@@ -849,7 +920,10 @@ export function App() {
       ),
     }));
     if (elsewhere) return;
-    if (!isDraft(path)) closed.current.push(t);
+    if (!isDraft(path)) {
+      closed.current.push(t);
+      if (closed.current.length > 20) closed.current.shift();
+    }
     setTabs((ts) => ts.filter((t) => t.path !== path));
     if (active === path)
       setActive(
@@ -1083,7 +1157,7 @@ export function App() {
     const action = fileAction;
     const target = newName.trim();
     try {
-      if (updateLinks && !renamePlan) {
+      if (!web && updateLinks && !renamePlan) {
         setRenameBusy(true);
         const plan = await window.folio.planRenameLinks(action.path, target, origin);
         if (
@@ -1095,7 +1169,7 @@ export function App() {
           setRenamePlan(plan);
         return;
       }
-      if (updateLinks && renamePlan) {
+      if (!web && updateLinks && renamePlan) {
         if (!canRename(renamePlan)) return;
         setRenameBusy(true);
         await applyLinkRename(renamePlan);
@@ -1153,7 +1227,12 @@ export function App() {
     setSelectedFolder(parent);
     setContextMenu(null);
     setDialog(null);
-    setCreation({ root, parent, type, name: suggestedName(entries, parent, type, drawing) });
+    setCreation({
+      root,
+      parent,
+      type,
+      name: suggestedName(entries, parent, type, drawing),
+    });
   }
   async function commitCreation() {
     const request = creation;
@@ -1244,13 +1323,6 @@ export function App() {
   }
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setMenu(false);
-        setTabMenu(false);
-        setContextMenu(null);
-        setFileAction(null);
-        return;
-      }
       if (e.key === "F11") {
         e.preventDefault();
         void window.folio.window("fullscreen");
@@ -1267,7 +1339,7 @@ export function App() {
       if (["k", "j", "e", "n", "t", "w", ",", "\\", "tab", "s"].includes(key) || /^\d$/.test(key)) {
         e.preventDefault();
         if (key === "k") setSwitcher(true);
-        if (key === "j") setAssistant((v) => !v);
+        if (key === "j" && !web) setAssistant((v) => !v);
         if (key === "\\") setSidebar((v) => !v);
         if (key === ",") setDialog("settings");
         if (key === "e") mode(e.shiftKey ? "split" : tab?.mode === "edit" ? "preview" : "edit");
@@ -1328,479 +1400,361 @@ export function App() {
     </Tooltip>
   );
   return (
-    <div
-      className={`app ${sidebar ? "has-sidebar" : ""} ${assistant ? "has-assistant" : ""}`}
-      style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}
+    <Tabs.Root
+      value={active}
+      activationMode="manual"
+      onValueChange={(path) => {
+        setActive(path);
+        setSelectedFolder(path.split("/").slice(0, -1).join("/"));
+      }}
+      asChild
     >
-      {sidebar && (
-        <aside className="sidebar">
-          <div className="sidebar-top drag">
-            <Button label="Hide sidebar (Ctrl+\\)" onClick={() => setSidebar(false)}>
-              <PanelLeft />
-            </Button>
-            <span className="push" />
-            <Button
-              label="Previous tab"
-              onClick={() =>
-                setActive(
-                  tabs[Math.max(0, tabs.findIndex((t) => t.path === active) - 1)]?.path || "",
-                )
-              }
-            >
-              <ChevronLeft />
-            </Button>
-            <Button
-              label="Next tab"
-              onClick={() =>
-                setActive(
-                  tabs[Math.min(tabs.length - 1, tabs.findIndex((t) => t.path === active) + 1)]
-                    ?.path || "",
-                )
-              }
-            >
-              <ChevronRight />
-            </Button>
-          </div>
-          <label className="search">
-            <Search size={16} />
-            <input
-              ref={searchRef}
-              placeholder="Search files"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-            {search ? (
-              <Button label="Clear search" onClick={() => setSearch("")}>
-                <X size={12} />
+      <div
+        className={`app ${sidebar ? "has-sidebar" : ""} ${!web && assistant ? "has-assistant" : ""}`}
+        style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}
+      >
+        {sidebar && (
+          <aside className="sidebar">
+            <div className="sidebar-top drag">
+              <Button label="Hide sidebar (Ctrl+\\)" onClick={() => setSidebar(false)}>
+                <PanelLeft />
               </Button>
-            ) : (
-              <kbd>Ctrl K</kbd>
-            )}
-          </label>
-          <div className="tree">
-            {!search && tabs.length > 0 && (
-              <>
-                <h4>Recent</h4>
-                {tabs
-                  .slice(-4)
-                  .reverse()
-                  .map((t) =>
-                    fileRow(
-                      entries.find((e) => e.path === t.path) || {
-                        path: t.path,
-                        name: t.path,
-                        kind: kindOf(t.path),
-                        size: 0,
-                        modified: 0,
-                      },
-                    ),
-                  )}
-              </>
-            )}
-            {search ? (
-              <>
-                <h4>Search results</h4>
-                {paths.filter((e) => e.kind !== "folder").map(fileRow)}
-              </>
-            ) : (
-              <FileTree
-                key={root}
-                collapsed={collapsedFolders}
-                setCollapsed={setCollapsedFolders}
-                entries={entries}
-                active={active}
-                open={(p, pin) => void open(p, pin)}
-                context={(path, directory, x, y) => setContextMenu({ root, path, directory, x, y })}
-                selectedFolder={selectedFolder}
-                selectFolder={setSelectedFolder}
-                creation={creation?.root === root ? creation : null}
-                changeCreation={(name) =>
-                  setCreation((c) => (c ? { ...c, name, error: undefined } : c))
+              <span className="push" />
+              <Button
+                label="Previous tab"
+                onClick={() =>
+                  setActive(
+                    tabs[Math.max(0, tabs.findIndex((t) => t.path === active) - 1)]?.path || "",
+                  )
                 }
-                commitCreation={() => void commitCreation()}
-                cancelCreation={() => setCreation(null)}
-                newFile={(parent) => beginCreation("file", parent)}
-                newFolder={(parent) => beginCreation("folder", parent)}
+              >
+                <ChevronLeft />
+              </Button>
+              <Button
+                label="Next tab"
+                onClick={() =>
+                  setActive(
+                    tabs[Math.min(tabs.length - 1, tabs.findIndex((t) => t.path === active) + 1)]
+                      ?.path || "",
+                  )
+                }
+              >
+                <ChevronRight />
+              </Button>
+            </div>
+            <label className="search">
+              <Search size={16} />
+              <input
+                ref={searchRef}
+                placeholder="Search files"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
               />
-            )}
-            {search && !paths.length && (
-              <div className="search-empty">
-                <Search />
-                <p>No file names match “{search}”</p>
-                <button
-                  onClick={() => {
-                    beginCreation("file", selectedFolder);
-                    setCreation((c) =>
-                      c ? { ...c, name: search.includes(".") ? search : `${search}.md` } : c,
-                    );
-                  }}
-                >
-                  New note “{search}”
+              {search ? (
+                <Button label="Clear search" onClick={() => setSearch("")}>
+                  <X size={12} />
+                </Button>
+              ) : (
+                <kbd>Ctrl K</kbd>
+              )}
+            </label>
+            <div className="tree">
+              {!search && tabs.length > 0 && (
+                <>
+                  <h4>Recent</h4>
+                  {tabs
+                    .slice(-4)
+                    .reverse()
+                    .map((t) =>
+                      fileRow(
+                        entries.find((e) => e.path === t.path) || {
+                          path: t.path,
+                          name: t.path,
+                          kind: kindOf(t.path),
+                          size: 0,
+                          modified: 0,
+                        },
+                      ),
+                    )}
+                </>
+              )}
+              {search ? (
+                <>
+                  <h4>Search results</h4>
+                  {paths.filter((e) => e.kind !== "folder").map(fileRow)}
+                </>
+              ) : (
+                <FileTree
+                  key={root}
+                  collapsed={collapsedFolders}
+                  setCollapsed={setCollapsedFolders}
+                  entries={entries}
+                  active={active}
+                  open={(p, pin) => void open(p, pin)}
+                  context={(path, directory, x, y) =>
+                    setContextMenu({ root, path, directory, x, y })
+                  }
+                  selectedFolder={selectedFolder}
+                  selectFolder={setSelectedFolder}
+                  creation={creation?.root === root ? creation : null}
+                  changeCreation={(name) =>
+                    setCreation((c) => (c ? { ...c, name, error: undefined } : c))
+                  }
+                  commitCreation={() => void commitCreation()}
+                  cancelCreation={() => setCreation(null)}
+                  newFile={(parent) => beginCreation("file", parent)}
+                  newFolder={(parent) => beginCreation("folder", parent)}
+                />
+              )}
+              {search && !paths.length && (
+                <div className="search-empty">
+                  <Search />
+                  <p>No file names match “{search}”</p>
+                  <button
+                    onClick={() => {
+                      beginCreation("file", selectedFolder);
+                      setCreation((c) =>
+                        c
+                          ? {
+                              ...c,
+                              name: search.includes(".") ? search : `${search}.md`,
+                            }
+                          : c,
+                      );
+                    }}
+                  >
+                    New note “{search}”
+                  </button>
+                </div>
+              )}
+              {!root && (
+                <button className="open-folder" onClick={() => void folder()}>
+                  <FolderOpen /> Open a folder
                 </button>
-              </div>
-            )}
-            {!root && (
-              <button className="open-folder" onClick={() => void folder()}>
-                <FolderOpen /> Open a folder
+              )}
+            </div>
+            <footer className="sidebar-footer">
+              <button
+                data-desktop
+                className="file-row"
+                onClick={() =>
+                  void window.folio
+                    .trashList()
+                    .then((items) => {
+                      setTrash(items);
+                      setDialog("trash");
+                    })
+                    .catch((e) => notify(String(e)))
+                }
+              >
+                <Trash2 />
+                <span>Trash</span>
               </button>
-            )}
-          </div>
-          <footer className="sidebar-footer">
-            <button
-              className="file-row"
-              onClick={() =>
-                void window.folio
-                  .trashList()
-                  .then((items) => {
-                    setTrash(items);
-                    setDialog("trash");
-                  })
-                  .catch((e) => notify(String(e)))
-              }
-            >
-              <Trash2 />
-              <span>Trash</span>
-            </button>
-            <div className="vault-row">
-              <Tooltip text={[root || "Grove", syncText].filter(Boolean).join(" · ")}>
-                <button className="vault-switch" onClick={() => void folder()}>
-                  <span className="workspace-avatar">
-                    <GroveMark size={25} />
-                  </span>
-                  <span>
-                    <strong>{root ? name(root) : "Grove"}</strong>
-                    {root && syncText ? (
-                      <small
-                        className="sync-status"
-                        role="button"
-                        tabIndex={0}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSettingsSection("sync");
-                          setDialog("settings");
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
+              <div className="vault-row">
+                <Tooltip text={[root || "Grove", syncText].filter(Boolean).join(" · ")}>
+                  <button
+                    className="vault-switch"
+                    onClick={() => {
+                      // The browser has no folder picker: the vault card opens its sync details.
+                      if (!web) return void folder();
+                      setSettingsSection("sync");
+                      setDialog("settings");
+                    }}
+                  >
+                    <span className="workspace-avatar">
+                      <GroveMark size={25} />
+                    </span>
+                    <span>
+                      <strong>{root ? vaultName(root) : "Grove"}</strong>
+                      {root && syncText ? (
+                        <small
+                          className="sync-status"
+                          role="button"
+                          tabIndex={0}
+                          onClick={(e) => {
                             e.stopPropagation();
                             setSettingsSection("sync");
                             setDialog("settings");
-                          }
-                        }}
-                      >
-                        {syncText}
-                      </small>
-                    ) : (
-                      <small>
-                        {root ? "Local folder · opened in place" : "Your files, your space"}
-                      </small>
-                    )}
-                  </span>
-                  <ChevronsUpDown size={14} />
-                </button>
-              </Tooltip>
-              <Button label="Workspaces" onClick={() => setWorkspacesOpen(true)}>
-                <Columns2 />
-              </Button>
-              <Button label="Settings (Ctrl+,)" onClick={() => setDialog("settings")}>
-                <SlidersHorizontal />
-              </Button>
-              <Button label="New note (Ctrl+N)" onClick={() => newNote()}>
-                <Plus />
-              </Button>
-            </div>
-          </footer>
-          <div
-            className="sidebar-resizer"
-            role="separator"
-            aria-label="Resize sidebar"
-            aria-orientation="vertical"
-            tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
-                e.preventDefault();
-                setSidebarWidth((w) =>
-                  Math.max(190, Math.min(520, w + (e.key === "ArrowRight" ? 16 : -16))),
-                );
-              }
-            }}
-            onPointerDown={(e) => {
-              e.preventDefault();
-              const target = e.currentTarget;
-              target.setPointerCapture(e.pointerId);
-              document.body.classList.add("resizing-sidebar");
-            }}
-            onPointerMove={(e) => {
-              if (e.currentTarget.hasPointerCapture(e.pointerId))
-                setSidebarWidth(Math.max(190, Math.min(520, e.clientX)));
-            }}
-            onPointerUp={(e) => {
-              e.currentTarget.releasePointerCapture(e.pointerId);
-              document.body.classList.remove("resizing-sidebar");
-            }}
-            onLostPointerCapture={() => document.body.classList.remove("resizing-sidebar")}
-          />
-        </aside>
-      )}
-      <header
-        className="titlebar drag"
-        onDoubleClick={(e) => {
-          if (e.target === e.currentTarget) void window.folio.window("maximize");
-        }}
-      >
-        {!sidebar && (
-          <div className="left-controls">
-            <Button label="Show sidebar" onClick={() => setSidebar(true)}>
-              <PanelLeft />
-            </Button>
-            <Button
-              label="Search files"
-              onClick={() => {
-                setSidebar(true);
-                setTimeout(() => searchRef.current?.focus(), 0);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setSettingsSection("sync");
+                              setDialog("settings");
+                            }
+                          }}
+                        >
+                          {syncText}
+                        </small>
+                      ) : (
+                        <small>
+                          {root ? "Local folder · opened in place" : "Your files, your space"}
+                        </small>
+                      )}
+                    </span>
+                    <ChevronsUpDown size={14} />
+                  </button>
+                </Tooltip>
+                <Button label="Workspaces" onClick={() => setWorkspacesOpen(true)}>
+                  <Columns2 />
+                </Button>
+                <Button label="Settings (Ctrl+,)" onClick={() => setDialog("settings")}>
+                  <SlidersHorizontal />
+                </Button>
+                <Button label="New note (Ctrl+N)" onClick={() => newNote()}>
+                  <Plus />
+                </Button>
+              </div>
+            </footer>
+            <div
+              className="sidebar-resizer"
+              role="separator"
+              aria-label="Resize sidebar"
+              aria-orientation="vertical"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+                  e.preventDefault();
+                  setSidebarWidth((w) =>
+                    Math.max(190, Math.min(520, w + (e.key === "ArrowRight" ? 16 : -16))),
+                  );
+                }
               }}
-            >
-              <Search />
-            </Button>
-          </div>
+              onPointerDown={(e) => {
+                e.preventDefault();
+                const target = e.currentTarget;
+                target.setPointerCapture(e.pointerId);
+                document.body.classList.add("resizing-sidebar");
+              }}
+              onPointerMove={(e) => {
+                if (e.currentTarget.hasPointerCapture(e.pointerId))
+                  setSidebarWidth(Math.max(190, Math.min(520, e.clientX)));
+              }}
+              onPointerUp={(e) => {
+                e.currentTarget.releasePointerCapture(e.pointerId);
+                document.body.classList.remove("resizing-sidebar");
+              }}
+              onLostPointerCapture={() => document.body.classList.remove("resizing-sidebar")}
+            />
+          </aside>
         )}
-        <div className="tabs">
-          {tabs
-            .filter((t) => activePane.tabs.includes(t.path))
-            .map((t) => (
-              <Tooltip key={t.path} text={t.pinned ? `${t.path} · Pinned` : t.path}>
-                <div
-                  draggable
-                  onDragStart={(e) => e.dataTransfer.setData("application/x-grove-tab", t.path)}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    const from = e.dataTransfer.getData("application/x-grove-tab");
-                    setTabs((ts) => {
-                      const moving = ts.find((t) => t.path === from);
-                      if (!moving) return ts;
-                      const next = ts.filter((t) => t.path !== from);
-                      next.splice(
-                        next.findIndex((x) => x.path === t.path),
-                        0,
-                        moving,
-                      );
-                      return next;
-                    });
-                  }}
-                  className={`tab ${active === t.path ? "active" : ""} ${t.preview ? "temporary" : ""} ${t.pinned ? "pinned" : ""}`}
-                  data-path={t.path}
-                  aria-label={t.pinned ? `${tabName(t)} · Pinned tab` : tabName(t)}
-                  onClick={() => {
-                    setActive(t.path);
-                    setSelectedFolder(t.path.split("/").slice(0, -1).join("/"));
-                  }}
-                  onDoubleClick={() =>
-                    setTabs((ts) =>
-                      ts.map((x) => (x.path === t.path ? { ...x, preview: false } : x)),
-                    )
-                  }
-                  onAuxClick={(e) => {
-                    if (e.button === 1) close(t.path);
-                  }}
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    setActive(t.path);
-                    setContextMenu({
-                      root,
-                      path: t.path,
-                      directory: false,
-                      tab: true,
-                      x: e.clientX,
-                      y: e.clientY,
-                    });
-                  }}
-                >
-                  <Icon path={t.path} />
-                  {!t.pinned && <span>{tabName(t)}</span>}
-                  {t.pinned ? (
-                    <Pin size={12} />
-                  ) : (
-                    <Button
-                      label={`Close ${tabName(t)}`}
-                      className={`tab-close ${t.value !== t.doc.content ? "dirty" : ""} ${t.disk ? "conflicted" : ""}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        close(t.path);
-                      }}
-                    >
-                      {t.value !== t.doc.content ? <i /> : <X size={12} />}
-                    </Button>
-                  )}
-                </div>
-              </Tooltip>
-            ))}
-          <Button label="New tab (Ctrl+T)" className="tab-add" onClick={() => newNote()}>
-            <Plus />
-          </Button>
-        </div>
-        <Button label="All open tabs" onClick={() => setTabMenu(!tabMenu)}>
-          <ChevronDown />
-        </Button>
-        <div className="drag-handle" aria-hidden="true" />
-        <div className="title-actions">
-          {root && (
-            <Button label="Backlinks and broken links" onClick={() => setShowLinks((v) => !v)}>
-              <Link2 />
-            </Button>
-          )}
-          {tab && (
-            <Button label="Open beside" onClick={() => openBeside(active)}>
-              <Columns2 />
-            </Button>
-          )}
-          {tab && !tab.readError && editable(active, entry.kind) && (
-            <span
-              className={`save-status ${tab.error ? "danger-text" : tab.disk ? "warning-text" : ""}`}
-            >
-              <i />
-              {tab.error
-                ? "Not saved"
-                : tab.disk
-                  ? "Changed on disk"
-                  : tab.saving
-                    ? "Saving…"
-                    : tab.value !== tab.doc.content
-                      ? "Unsaved"
-                      : "Saved"}
-            </span>
-          )}
-          {tab && ["markdown", "text"].includes(entry.kind) && (
-            <div className="seg">
-              {(["edit", "preview", "split"] as const).map((m) => (
-                <button className={tab.mode === m ? "active" : ""} key={m} onClick={() => mode(m)}>
-                  {m[0].toUpperCase() + m.slice(1)}
-                </button>
-              ))}
-            </div>
-          )}
-          <Button
-            label="Toggle light/dark"
-            onClick={() => setSettings({ ...settings, theme: dark ? "light" : "dark" })}
-          >
-            {dark ? <Sun /> : <Moon />}
-          </Button>
-          <Button label="Document menu" onClick={() => setMenu(!menu)}>
-            <Ellipsis />
-          </Button>
-          <button
-            className={`assistant-toggle ${assistant ? "selected" : ""}`}
-            onClick={() => setAssistant(!assistant)}
-          >
-            <Sparkles /> <span>Assistant</span>
-          </button>
-          <span className="divider" />
-        </div>
-        <div className="window-controls">
-          <Button label="Minimize" onClick={() => void window.folio.window("minimize")}>
-            <Minus />
-          </Button>
-          <Button label="Maximize" onClick={() => void window.folio.window("maximize")}>
-            <Square />
-          </Button>
-          <Button
-            label="Close window"
-            className="window-close"
-            onClick={() => void window.folio.window("close")}
-          >
-            <X />
-          </Button>
-        </div>
-      </header>
-      {menu && (
-        <>
-          <div className="dismiss" onClick={() => setMenu(false)} />
-          <div className="menu">
-            {tab && entry.kind === "markdown" && (
-              <button
+        <header
+          className="titlebar drag"
+          onDoubleClick={(e) => {
+            if (e.target === e.currentTarget) void window.folio.window("maximize");
+          }}
+        >
+          {!sidebar && (
+            <div className="left-controls">
+              <Button label="Show sidebar" onClick={() => setSidebar(true)}>
+                <PanelLeft />
+              </Button>
+              <Button
+                label="Search files"
                 onClick={() => {
-                  setExportNote({ path: tab.path, content: tab.value, root });
-                  setMenu(false);
+                  setSidebar(true);
+                  setTimeout(() => searchRef.current?.focus(), 0);
                 }}
               >
-                Export note…
-              </button>
-            )}
-            <button onClick={() => void history()}>
-              <History /> Version history <kbd>Ctrl Alt H</kbd>
-            </button>
-            <button
-              disabled={!tab || isDraft(active)}
-              onClick={() => void window.folio.external(active, true)}
-            >
-              <FolderOpen /> Show in Files
-            </button>
-            <button
-              disabled={!tab || isDraft(active)}
-              onClick={() => void window.folio.external(active)}
-            >
-              <ExternalLink /> Open externally
-            </button>
-            <button
-              disabled={!tab}
-              onClick={() => {
-                void window.folio
-                  .copyText(`${root}/${active}`)
-                  .then(() => notify("Copied path"))
-                  .catch((e) => notify(String(e)));
-                setMenu(false);
-              }}
-            >
-              Copy path
-            </button>
-            <hr />
-            <button
-              disabled={!tab}
-              onClick={() => {
-                setTabs((ts) =>
-                  ts.map((t) =>
-                    t.path === active ? { ...t, pinned: !t.pinned, preview: false } : t,
-                  ),
-                );
-                setMenu(false);
-              }}
-            >
-              <Pin /> {tab?.pinned ? "Unpin" : "Pin"} tab
-            </button>
-            <button
-              onClick={() => {
-                setContext((c) => Array.from(new Set([...c, active])));
-                setAssistant(true);
-                setMenu(false);
-              }}
-            >
-              <Sparkles /> Add to assistant context
-            </button>
-            <button
-              onClick={() => {
-                setDialog("settings");
-                setMenu(false);
-              }}
-            >
-              <SlidersHorizontal /> Appearance
-            </button>
-            <hr />
-            <button
-              className="danger-text"
-              disabled={!tab || !editable(active, entry.kind)}
-              onClick={() => void remove()}
-            >
-              <Trash2 /> Move to Trash
-            </button>
-          </div>
-        </>
-      )}
-      {tabMenu && (
-        <>
-          <div className="dismiss" onClick={() => setTabMenu(false)} />
-          <div className="menu tab-list">
+                <Search />
+              </Button>
+            </div>
+          )}
+          <Tabs.List className="tabs" aria-label="Open documents">
+            {tabs
+              .filter((t) => activePane.tabs.includes(t.path))
+              .map((t) => (
+                <Tooltip key={t.path} text={t.pinned ? `${t.path} · Pinned` : t.path}>
+                  <div
+                    draggable
+                    onDragStart={(e) => e.dataTransfer.setData("application/x-grove-tab", t.path)}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const from = e.dataTransfer.getData("application/x-grove-tab");
+                      setTabs((ts) => {
+                        const moving = ts.find((t) => t.path === from);
+                        if (!moving) return ts;
+                        const next = ts.filter((t) => t.path !== from);
+                        next.splice(
+                          next.findIndex((x) => x.path === t.path),
+                          0,
+                          moving,
+                        );
+                        return next;
+                      });
+                    }}
+                    className={`tab ${active === t.path ? "active" : ""} ${t.preview ? "temporary" : ""} ${t.pinned ? "pinned" : ""}`}
+                    data-path={t.path}
+                    onClick={(event) => {
+                      if (event.target !== event.currentTarget) return;
+                      setActive(t.path);
+                      setSelectedFolder(t.path.split("/").slice(0, -1).join("/"));
+                    }}
+                    aria-label={t.pinned ? `${tabName(t)} · Pinned tab` : tabName(t)}
+                    onDoubleClick={() =>
+                      setTabs((ts) =>
+                        ts.map((x) => (x.path === t.path ? { ...x, preview: false } : x)),
+                      )
+                    }
+                    onAuxClick={(e) => {
+                      if (e.button === 1) close(t.path);
+                    }}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      setActive(t.path);
+                      setContextMenu({
+                        root,
+                        path: t.path,
+                        directory: false,
+                        tab: true,
+                        x: e.clientX,
+                        y: e.clientY,
+                      });
+                    }}
+                  >
+                    <Tabs.Trigger
+                      value={t.path}
+                      className="app-tab-trigger"
+                      aria-label={t.pinned ? `${tabName(t)} · Pinned tab` : tabName(t)}
+                    >
+                      <Icon path={t.path} />
+                      {!t.pinned && <span>{tabName(t)}</span>}
+                      {t.pinned && <Pin size={12} />}
+                    </Tabs.Trigger>
+                    {!t.pinned && (
+                      <Button
+                        label={`Close ${tabName(t)}`}
+                        className={`tab-close ${t.value !== t.doc.content ? "dirty" : ""} ${t.disk ? "conflicted" : ""}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          close(t.path);
+                        }}
+                      >
+                        {t.value !== t.doc.content ? <i /> : <X size={12} />}
+                      </Button>
+                    )}
+                  </div>
+                </Tooltip>
+              ))}
+            <Button label="New tab (Ctrl+T)" className="tab-add" onClick={() => newNote()}>
+              <Plus />
+            </Button>
+          </Tabs.List>
+          <Dropdown
+            open={tabMenu}
+            onOpenChange={setTabMenu}
+            label="All open tabs"
+            className="tab-list"
+            trigger={
+              <Button label="All open tabs">
+                <ChevronDown />
+              </Button>
+            }
+          >
             {tabs.map((t) => (
-              <button
+              <DropdownItem
                 key={t.path}
                 onClick={() => {
                   setActive(t.path);
@@ -1810,73 +1764,229 @@ export function App() {
                 <Icon path={t.path} />
                 {tabName(t)}
                 {active === t.path && <Check className="push" />}
-              </button>
+              </DropdownItem>
             ))}
+          </Dropdown>
+          <div className="drag-handle" aria-hidden="true" />
+          <div className="title-actions">
+            {root && (
+              <Button label="Backlinks and broken links" onClick={() => setShowLinks((v) => !v)}>
+                <Link2 />
+              </Button>
+            )}
+            {tab && (
+              <Button label="Open beside" onClick={() => openBeside(active)}>
+                <Columns2 />
+              </Button>
+            )}
+            {tab && !tab.readError && editable(active, entry.kind) && (
+              <span
+                className={`save-status ${tab.error ? "danger-text" : tab.disk ? "warning-text" : ""}`}
+              >
+                <i />
+                {tab.error
+                  ? "Not saved"
+                  : tab.disk
+                    ? "Changed on disk"
+                    : tab.saving
+                      ? "Saving…"
+                      : tab.value !== tab.doc.content
+                        ? "Unsaved"
+                        : "Saved"}
+              </span>
+            )}
+            {tab && ["markdown", "text"].includes(entry.kind) && (
+              <ToggleGroup.Root
+                type="single"
+                value={tab.mode}
+                onValueChange={(value) => {
+                  if (value) mode(value as Tab["mode"]);
+                }}
+                className="seg"
+                aria-label="Document view"
+              >
+                {(["edit", "preview", "split"] as const).map((m) => (
+                  <ToggleGroup.Item value={m} className={tab.mode === m ? "active" : ""} key={m}>
+                    {m[0].toUpperCase() + m.slice(1)}
+                  </ToggleGroup.Item>
+                ))}
+              </ToggleGroup.Root>
+            )}
+            <Button
+              label="Toggle light/dark"
+              onClick={() => setSettings({ ...settings, theme: dark ? "light" : "dark" })}
+            >
+              {dark ? <Sun /> : <Moon />}
+            </Button>
+            <Dropdown
+              open={menu}
+              onOpenChange={setMenu}
+              label="Document menu"
+              className=""
+              trigger={
+                <Button label="Document menu">
+                  <Ellipsis />
+                </Button>
+              }
+            >
+              {tab && entry.kind === "markdown" && (
+                <DropdownItem
+                  data-desktop
+                  onClick={() => {
+                    setExportNote({ path: tab.path, content: tab.value, root });
+                    setMenu(false);
+                  }}
+                >
+                  Export note…
+                </DropdownItem>
+              )}
+              <DropdownItem onClick={() => void history()}>
+                <History /> Version history <kbd>Ctrl Alt H</kbd>
+              </DropdownItem>
+              <DropdownItem
+                disabled={!tab || isDraft(active)}
+                data-desktop
+                onClick={() => void window.folio.external(active, true)}
+              >
+                <FolderOpen /> Show in Files
+              </DropdownItem>
+              <DropdownItem
+                disabled={!tab || isDraft(active)}
+                data-desktop
+                onClick={() => void window.folio.external(active)}
+              >
+                <ExternalLink /> Open externally
+              </DropdownItem>
+              <DropdownItem
+                disabled={!tab}
+                onClick={() => {
+                  void window.folio
+                    .copyText(`${root}/${active}`)
+                    .then(() => notify("Copied path"))
+                    .catch((e) => notify(String(e)));
+                  setMenu(false);
+                }}
+              >
+                Copy path
+              </DropdownItem>
+              <hr />
+              <DropdownItem
+                disabled={!tab}
+                onClick={() => {
+                  setTabs((ts) =>
+                    ts.map((t) =>
+                      t.path === active ? { ...t, pinned: !t.pinned, preview: false } : t,
+                    ),
+                  );
+                  setMenu(false);
+                }}
+              >
+                <Pin /> {tab?.pinned ? "Unpin" : "Pin"} tab
+              </DropdownItem>
+              <DropdownItem
+                data-desktop
+                onClick={() => {
+                  setContext((c) => Array.from(new Set([...c, active])));
+                  setAssistant(true);
+                  setMenu(false);
+                }}
+              >
+                <Sparkles /> Add to assistant context
+              </DropdownItem>
+              <DropdownItem
+                onClick={() => {
+                  setDialog("settings");
+                  setMenu(false);
+                }}
+              >
+                <SlidersHorizontal /> Appearance
+              </DropdownItem>
+              <hr />
+              <DropdownItem
+                data-desktop
+                className="danger-text"
+                disabled={!tab || !editable(active, entry.kind)}
+                onClick={() => void remove()}
+              >
+                <Trash2 /> Move to Trash
+              </DropdownItem>
+            </Dropdown>
+            <button
+              className={`assistant-toggle ${assistant ? "selected" : ""}`}
+              onClick={() => setAssistant(!assistant)}
+            >
+              <Sparkles /> <span>Assistant</span>
+            </button>
+            <span className="divider" />
           </div>
-        </>
-      )}
-      {contextMenu && (
-        <>
-          <div className="dismiss" onClick={() => setContextMenu(null)} />
-          <div
-            className="menu file-context-menu"
-            role="menu"
-            aria-label={
+          {account}
+          <div className="window-controls">
+            <Button label="Minimize" onClick={() => void window.folio.window("minimize")}>
+              <Minus />
+            </Button>
+            <Button label="Maximize" onClick={() => void window.folio.window("maximize")}>
+              <Square />
+            </Button>
+            <Button
+              label="Close window"
+              className="window-close"
+              onClick={() => void window.folio.window("close")}
+            >
+              <X />
+            </Button>
+          </div>
+        </header>
+
+        {contextMenu && (
+          <ItemMenu
+            point={contextMenu}
+            close={() => setContextMenu(null)}
+            label={
               contextMenu.tab
                 ? "Tab actions"
                 : contextMenu.directory
                   ? "Folder actions"
                   : "File actions"
             }
-            style={{
-              left: Math.min(contextMenu.x, window.innerWidth - 260),
-              top: Math.min(contextMenu.y, window.innerHeight - 330),
-              right: "auto",
-            }}
           >
             {contextMenu.directory ? (
               <>
-                <button
-                  role="menuitem"
+                <ItemMenuItem
                   onClick={() => {
                     if (contextMenu.root === root) beginCreation("file", contextMenu.path);
                   }}
                 >
                   <FileText /> New file
-                </button>
-                <button
-                  role="menuitem"
+                </ItemMenuItem>
+                <ItemMenuItem
                   onClick={() => {
                     if (contextMenu.root === root) beginCreation("folder", contextMenu.path);
                   }}
                 >
                   <Folder /> New folder
-                </button>
+                </ItemMenuItem>
               </>
             ) : (
               <>
-                <button
-                  role="menuitem"
+                <ItemMenuItem
                   onClick={() => {
                     void open(contextMenu.path, true);
                     setContextMenu(null);
                   }}
                 >
                   <FileText /> Open file
-                </button>
-                <button
-                  role="menuitem"
+                </ItemMenuItem>
+                <ItemMenuItem
                   onClick={() => {
                     if (contextMenu.root === root) void open(contextMenu.path, true);
                     setContextMenu(null);
                   }}
                 >
                   <Plus /> Open in new tab
-                </button>
+                </ItemMenuItem>
                 {contextMenu.tab && (
                   <>
-                    <button
-                      role="menuitem"
+                    <ItemMenuItem
                       onClick={() => {
                         setTabs((ts) =>
                           ts.map((t) =>
@@ -1892,16 +2002,15 @@ export function App() {
                       {tabs.find((t) => t.path === contextMenu.path)?.pinned
                         ? "Unpin tab"
                         : "Pin tab"}
-                    </button>
-                    <button
-                      role="menuitem"
+                    </ItemMenuItem>
+                    <ItemMenuItem
                       onClick={() => {
                         close(contextMenu.path);
                         setContextMenu(null);
                       }}
                     >
                       <X /> Close tab
-                    </button>
+                    </ItemMenuItem>
                   </>
                 )}
               </>
@@ -1909,8 +2018,7 @@ export function App() {
             {contextMenu.path && (
               <>
                 <hr />
-                <button
-                  role="menuitem"
+                <ItemMenuItem
                   onClick={() => {
                     setNewName(contextMenu.path);
                     setFileAction({
@@ -1922,9 +2030,8 @@ export function App() {
                   }}
                 >
                   <Pencil /> Rename
-                </button>
-                <button
-                  role="menuitem"
+                </ItemMenuItem>
+                <ItemMenuItem
                   onClick={() =>
                     void window.folio
                       .external(contextMenu.path, true)
@@ -1933,9 +2040,8 @@ export function App() {
                   }
                 >
                   <FolderOpen /> Show in Files
-                </button>
-                <button
-                  role="menuitem"
+                </ItemMenuItem>
+                <ItemMenuItem
                   onClick={() => {
                     void window.folio
                       .copyText(`${root}/${contextMenu.path}`)
@@ -1945,51 +2051,54 @@ export function App() {
                   }}
                 >
                   Copy path
-                </button>
+                </ItemMenuItem>
                 <hr />
-                <button
-                  role="menuitem"
+                <ItemMenuItem
+                  data-desktop
                   className="danger-text"
                   onClick={() => void deleteEntry(contextMenu.path, contextMenu.root)}
                 >
                   <Trash2 /> Move to Trash
-                </button>
+                </ItemMenuItem>
               </>
             )}
-          </div>
-        </>
-      )}
-      {draftSave && (
-        <SaveDraftDialog
-          key={draftSave.path}
-          title={draftTitle(tabs.find((t) => t.path === draftSave.path)?.value || "")}
-          folders={entries.filter((e) => e.kind === "folder").map((e) => e.path)}
-          folder={selectedFolder}
-          closing={draftSave.closing}
-          vaultName={name(root)}
-          save={saveDraft}
-          discard={() => {
-            const path = draftSave.path;
-            setDraftSave(null);
-            close(path, true);
-          }}
-          cancel={() => {
-            quitting.current = false;
-            setDraftSave(null);
-          }}
-        />
-      )}
-      {fileAction && (
-        <div
-          className="modal-backdrop"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setFileAction(null);
-          }}
-        >
-          <section className="modal" role="dialog" aria-label="Rename">
+          </ItemMenu>
+        )}
+
+        {draftSave && (
+          <SaveDraftDialog
+            key={draftSave.path}
+            title={draftTitle(tabs.find((t) => t.path === draftSave.path)?.value || "")}
+            folders={entries.filter((e) => e.kind === "folder").map((e) => e.path)}
+            folder={selectedFolder}
+            closing={draftSave.closing}
+            vaultName={vaultName(root)}
+            save={saveDraft}
+            discard={() => {
+              const path = draftSave.path;
+              setDraftSave(null);
+              close(path, true);
+            }}
+            cancel={() => {
+              quitting.current = false;
+              setDraftSave(null);
+            }}
+          />
+        )}
+        {fileAction && (
+          <Dialog
+            className="modal"
+            label="Rename"
+            close={() => setFileAction(null)}
+            dismissible={!renameBusy}
+          >
             <header>
               <h2>Rename</h2>
-              <button aria-label="Close dialog" onClick={() => setFileAction(null)}>
+              <button
+                disabled={renameBusy}
+                aria-label="Close dialog"
+                onClick={() => setFileAction(null)}
+              >
                 <X />
               </button>
             </header>
@@ -2009,11 +2118,10 @@ export function App() {
                 onChange={(e) => setNewName(e.target.value)}
               />
               <label>
-                <input
-                  type="checkbox"
-                  checked={updateLinks}
-                  disabled={renameBusy}
-                  onChange={(event) => setUpdateLinks(event.target.checked)}
+                <CheckField
+                  checked={!web && updateLinks}
+                  disabled={renameBusy || web}
+                  onCheckedChange={setUpdateLinks}
                 />{" "}
                 Update links in saved notes
               </label>
@@ -2031,7 +2139,7 @@ export function App() {
                 </div>
               )}
               <footer>
-                <button type="button" onClick={() => setFileAction(null)}>
+                <button type="button" disabled={renameBusy} onClick={() => setFileAction(null)}>
                   Cancel
                 </button>
                 <button type="submit" className="primary" disabled={renameBusy}>
@@ -2043,442 +2151,456 @@ export function App() {
                 </button>
               </footer>
             </form>
-          </section>
-        </div>
-      )}
-      <main className="document-panel">
-        {showLinks && root && !isDraft(active) && (
-          <Backlinks
-            key={root}
-            root={root}
-            path={active}
-            open={(path) => void open(path, true)}
-            close={() => setShowLinks(false)}
-            apply={applyLinkRename}
-          />
+          </Dialog>
         )}
-        {contentSearch && (
-          <SearchPanel
-            key={`${root}:${contentSearch.path || "workspace"}`}
-            root={root}
-            path={contentSearch.path}
-            documents={tabs}
-            jump={jumpToMatch}
-            close={() => setContentSearch(undefined)}
-          />
-        )}
-        {activeConflict && (
-          <div className="banner warning">
-            <p>Another device changed this file at the same time. Both versions are kept.</p>
-            <div className="actions">
-              <button onClick={() => openBeside(activeConflict.path)}>Compare side by side</button>
+        <main className="document-panel">
+          {showLinks && root && !isDraft(active) && (
+            <Backlinks
+              key={root}
+              root={root}
+              path={active}
+              open={(path) => void open(path, true)}
+              close={() => setShowLinks(false)}
+              apply={applyLinkRename}
+            />
+          )}
+          {contentSearch && (
+            <SearchPanel
+              key={`${root}:${contentSearch.path || "workspace"}`}
+              root={root}
+              path={contentSearch.path}
+              documents={tabs}
+              jump={jumpToMatch}
+              close={() => setContentSearch(undefined)}
+            />
+          )}
+          {activeConflict && (
+            <div className="banner warning">
+              <p>Another device changed this file at the same time. Both versions are kept.</p>
+              <div className="actions">
+                <button onClick={() => openBeside(activeConflict.path)}>
+                  Compare side by side
+                </button>
+              </div>
             </div>
-          </div>
-        )}
-        {tab?.unavailable && (
-          <div className="banner warning">
-            <strong>File unavailable on disk</strong>
-            <p>{tab.unavailable}. Your working copy and drafts are kept.</p>
-            <div className="actions">
-              <button
-                onClick={() =>
-                  void window.folio.saveCopy(tab.value).catch((error) => notify(String(error)))
-                }
-              >
-                Save copy
-              </button>
-              {tab && entry.kind === "markdown" && (
+          )}
+          {tab?.unavailable && (
+            <div className="banner warning">
+              <strong>File unavailable on disk</strong>
+              <p>{tab.unavailable}. Your working copy and drafts are kept.</p>
+              <div className="actions">
                 <button
-                  onClick={() => {
-                    setExportNote({ path: tab.path, content: tab.value, root });
-                    setMenu(false);
-                  }}
-                >
-                  Export note…
-                </button>
-              )}
-              <button onClick={() => void history()}>View history</button>
-            </div>
-          </div>
-        )}
-        {tab?.readError && (
-          <div className="banner warning">
-            <strong>This file cannot be edited as text.</strong>
-            <p>{tab.readError}</p>
-          </div>
-        )}
-        {tab?.disk && (
-          <div className="banner warning">
-            <div>
-              <strong>This file changed on disk while you had unsaved edits.</strong>
-              <p>Nothing was overwritten. Choose which version to keep.</p>
-            </div>
-            <div className="actions">
-              <button onClick={() => setRecoveryPreview({ root, expected: tab })}>Compare</button>
-              <button
-                className="primary"
-                onClick={() =>
-                  void (async () => {
-                    try {
-                      const copy = conflictCopyPath(active);
-                      await window.folio.create(copy, tab.value, root);
-                      if (live.current.root !== root) return;
-                      const disk = await window.folio.read(active);
-                      if (live.current.root !== root) return;
-                      finishRecovery(root, tab, disk);
-                      await refresh();
-                      if (live.current.root !== root) return;
-                      await open(copy, true);
-                      notify("Both versions kept in separate files.");
-                    } catch (e) {
-                      notify(String(e));
-                    }
-                  })()
-                }
-              >
-                Keep both
-              </button>
-              <button onClick={() => void save(active, tab.disk!.hash)}>Keep mine</button>
-              <button
-                onClick={() =>
-                  void window.folio
-                    .checkpoint(active, tab.value, root)
-                    .then(() => {
-                      finishRecovery(root, tab, tab.disk!);
-                    })
-                    .catch((e) => notify(String(e)))
-                }
-              >
-                Use disk version
-              </button>
-            </div>
-          </div>
-        )}
-        {tab?.error && (
-          <div className="banner danger">
-            <strong>Couldn’t save {entry.name}</strong>
-            <p>{tab.error}. Your edits are retained in a recovery draft.</p>
-            <div className="actions">
-              <button onClick={() => void save(active)}>Retry</button>
-              <button
-                onClick={() =>
-                  void window.folio.saveCopy(tab.value).catch((e) => notify(String(e)))
-                }
-              >
-                Save a copy…
-              </button>
-            </div>
-          </div>
-        )}
-        {!tab ? (
-          <div className="empty welcome">
-            <div className="folio-mark">
-              <GroveMark size={38} />
-            </div>
-            <h1>{root ? "No file open" : "A quiet place for your ideas."}</h1>
-            <p>
-              {root
-                ? "Choose a file from the sidebar, or start something new."
-                : "Notes, drawings, and the things you want to keep.\nAll in a folder you already own."}
-            </p>
-            <div className="welcome-actions">
-              {!root ? (
-                <button className="primary" onClick={() => void folder()}>
-                  <FolderOpen /> Open a folder <kbd>↵</kbd>
-                </button>
-              ) : (
-                <>
-                  <button onClick={() => newNote()}>
-                    <FileText /> New note <kbd>Ctrl N</kbd>
-                  </button>
-                  <button onClick={() => newNote(true)}>
-                    <Shapes /> New drawing <kbd>Ctrl Shift N</kbd>
-                  </button>
-                </>
-              )}
-            </div>
-            <small>Local files. No account. Yours to keep.</small>
-          </div>
-        ) : (
-          <div className="document-panes">
-            {layout.panes.map((pane, index) => {
-              const document = tabs.find((t) => t.path === pane.active);
-              const found = entries.find((e) => e.path === pane.active);
-              const paneEntry = document
-                ? {
-                    ...(found || {
-                      path: document.path,
-                      name: document.path.split("/").pop() || document.path,
-                      size: 0,
-                      modified: 0,
-                    }),
-                    kind: document.readError
-                      ? ("unsupported" as const)
-                      : document.asText
-                        ? ("text" as const)
-                        : document.kind || kindOf(document.path),
+                  onClick={() =>
+                    void window.folio.saveCopy(tab.value).catch((error) => notify(String(error)))
                   }
-                : undefined;
-              return (
-                <div
-                  key={pane.id}
-                  className="pane-slot"
-                  style={{
-                    flex:
-                      layout.panes.length === 1
-                        ? 1
-                        : index === 0
-                          ? layout.splitRatio
-                          : 1 - layout.splitRatio,
-                  }}
                 >
-                  {index === 1 && (
-                    <div
-                      role="separator"
-                      aria-label="Resize document panes"
-                      aria-orientation="vertical"
-                      aria-valuenow={Math.round(layout.splitRatio * 100)}
-                      tabIndex={0}
-                      className="pane-divider"
-                      onKeyDown={(e) => {
-                        if (["ArrowLeft", "ArrowRight", "Home"].includes(e.key)) {
-                          e.preventDefault();
-                          updateLayout((l) => ({
-                            ...l,
-                            splitRatio:
-                              e.key === "Home"
-                                ? 0.5
-                                : Math.max(
-                                    0.25,
-                                    Math.min(
-                                      0.75,
-                                      l.splitRatio + (e.key === "ArrowRight" ? 0.05 : -0.05),
-                                    ),
-                                  ),
-                          }));
-                        }
-                      }}
-                      onPointerDown={(e) => e.currentTarget.setPointerCapture(e.pointerId)}
-                      onPointerMove={(e) => {
-                        if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-                          const box = e.currentTarget
-                            .closest(".document-panes")!
-                            .getBoundingClientRect();
-                          updateLayout((l) => ({
-                            ...l,
-                            splitRatio: Math.max(
-                              0.25,
-                              Math.min(0.75, (e.clientX - box.left) / box.width),
-                            ),
-                          }));
-                        }
-                      }}
-                      onPointerUp={(e) => e.currentTarget.releasePointerCapture(e.pointerId)}
-                    />
-                  )}
-                  <DocumentPane
-                    notify={notify}
-                    pane={pane}
-                    tab={document}
-                    entry={paneEntry}
-                    label={(path) => {
-                      const t = tabs.find((t) => t.path === path);
-                      return t ? tabName(t) : name(path);
+                  Save copy
+                </button>
+                {tab && entry.kind === "markdown" && (
+                  <button
+                    data-desktop
+                    onClick={() => {
+                      setExportNote({
+                        path: tab.path,
+                        content: tab.value,
+                        root,
+                      });
+                      setMenu(false);
                     }}
-                    settings={settings}
-                    root={root}
-                    dark={dark}
-                    focused={pane.id === layout.activePaneId}
-                    split={layout.panes.length > 1}
-                    focus={() => {
-                      if (live.current.layout.activePaneId !== pane.id)
-                        updateLayout((l) => ({ ...l, activePaneId: pane.id }));
-                    }}
-                    activate={(path) => setActive(path, pane.id)}
-                    closePane={() =>
-                      updateLayout((l) => {
-                        const remaining = l.panes.filter((p) => p.id !== pane.id);
-                        if (!remaining.length) return l;
-                        remaining[0] = {
-                          ...remaining[0],
-                          tabs: [...new Set([...remaining[0].tabs, ...pane.tabs])],
-                          views: { ...pane.views, ...remaining[0].views },
-                        };
-                        return { ...l, panes: remaining, activePaneId: remaining[0].id };
+                  >
+                    Export note…
+                  </button>
+                )}
+                <button onClick={() => void history()}>View history</button>
+              </div>
+            </div>
+          )}
+          {tab?.readError && (
+            <div className="banner warning">
+              <strong>This file cannot be edited as text.</strong>
+              <p>{tab.readError}</p>
+            </div>
+          )}
+          {tab?.disk && (
+            <div className="banner warning">
+              <div>
+                <strong>This file changed on disk while you had unsaved edits.</strong>
+                <p>Nothing was overwritten. Choose which version to keep.</p>
+              </div>
+              <div className="actions">
+                <button onClick={() => setRecoveryPreview({ root, expected: tab })}>Compare</button>
+                <button
+                  className="primary"
+                  onClick={() =>
+                    void (async () => {
+                      try {
+                        const copy = conflictCopyPath(active);
+                        await window.folio.create(copy, tab.value, root);
+                        if (live.current.root !== root) return;
+                        const disk = await window.folio.read(active);
+                        if (live.current.root !== root) return;
+                        finishRecovery(root, tab, disk);
+                        await refresh();
+                        if (live.current.root !== root) return;
+                        await open(copy, true);
+                        notify("Both versions kept in separate files.");
+                      } catch (e) {
+                        notify(String(e));
+                      }
+                    })()
+                  }
+                >
+                  Keep both
+                </button>
+                <button onClick={() => void save(active, tab.disk!.hash)}>Keep mine</button>
+                <button
+                  onClick={() =>
+                    void window.folio
+                      .checkpoint(active, tab.value, root)
+                      .then(() => {
+                        finishRecovery(root, tab, tab.disk!);
                       })
-                    }
-                    change={(path, value) => change(value, path)}
-                    open={(path) => void open(path, true, pane.id)}
-                    ask={(s) => {
-                      setSelection(s);
-                      setAssistant(true);
-                    }}
-                    updateView={(path, view) => updateView(pane.id, path, view)}
-                  />
-                </div>
-              );
-            })}
-          </div>
+                      .catch((e) => notify(String(e)))
+                  }
+                >
+                  Use disk version
+                </button>
+              </div>
+            </div>
+          )}
+          {tab?.error && (
+            <div className="banner danger">
+              <strong>Couldn’t save {entry.name}</strong>
+              <p>{tab.error}. Your edits are retained in a recovery draft.</p>
+              <div className="actions">
+                <button onClick={() => void save(active)}>Retry</button>
+                <button
+                  onClick={() =>
+                    void window.folio.saveCopy(tab.value).catch((e) => notify(String(e)))
+                  }
+                >
+                  Save a copy…
+                </button>
+              </div>
+            </div>
+          )}
+          {!tab ? (
+            <div className="empty welcome">
+              <div className="folio-mark">
+                <GroveMark size={38} />
+              </div>
+              <h1>{root ? "No file open" : "A quiet place for your ideas."}</h1>
+              <p>
+                {root
+                  ? "Choose a file from the sidebar, or start something new."
+                  : "Notes, drawings, and the things you want to keep.\nAll in a folder you already own."}
+              </p>
+              <div className="welcome-actions">
+                {!root ? (
+                  <button className="primary" onClick={() => void folder()}>
+                    <FolderOpen /> Open a folder <kbd>↵</kbd>
+                  </button>
+                ) : (
+                  <>
+                    <button onClick={() => newNote()}>
+                      <FileText /> New note <kbd>Ctrl N</kbd>
+                    </button>
+                    <button onClick={() => newNote(true)}>
+                      <Shapes /> New drawing <kbd>Ctrl Shift N</kbd>
+                    </button>
+                  </>
+                )}
+              </div>
+              <small>Local files. No account. Yours to keep.</small>
+            </div>
+          ) : (
+            <Tabs.Content value={active} asChild forceMount>
+              <div className="document-panes">
+                {layout.panes.map((pane, index) => {
+                  const document = tabs.find((t) => t.path === pane.active);
+                  const found = entries.find((e) => e.path === pane.active);
+                  const paneEntry = document
+                    ? {
+                        ...(found || {
+                          path: document.path,
+                          name: document.path.split("/").pop() || document.path,
+                          size: 0,
+                          modified: 0,
+                        }),
+                        kind: document.readError
+                          ? ("unsupported" as const)
+                          : document.asText
+                            ? ("text" as const)
+                            : document.kind || kindOf(document.path),
+                      }
+                    : undefined;
+                  return (
+                    <div
+                      key={pane.id}
+                      className="pane-slot"
+                      style={{
+                        flex:
+                          layout.panes.length === 1
+                            ? 1
+                            : index === 0
+                              ? layout.splitRatio
+                              : 1 - layout.splitRatio,
+                      }}
+                    >
+                      {index === 1 && (
+                        <div
+                          role="separator"
+                          aria-label="Resize document panes"
+                          aria-orientation="vertical"
+                          aria-valuenow={Math.round(layout.splitRatio * 100)}
+                          tabIndex={0}
+                          className="pane-divider"
+                          onKeyDown={(e) => {
+                            if (["ArrowLeft", "ArrowRight", "Home"].includes(e.key)) {
+                              e.preventDefault();
+                              updateLayout((l) => ({
+                                ...l,
+                                splitRatio:
+                                  e.key === "Home"
+                                    ? 0.5
+                                    : Math.max(
+                                        0.25,
+                                        Math.min(
+                                          0.75,
+                                          l.splitRatio + (e.key === "ArrowRight" ? 0.05 : -0.05),
+                                        ),
+                                      ),
+                              }));
+                            }
+                          }}
+                          onPointerDown={(e) => e.currentTarget.setPointerCapture(e.pointerId)}
+                          onPointerMove={(e) => {
+                            if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+                              const box = e.currentTarget
+                                .closest(".document-panes")!
+                                .getBoundingClientRect();
+                              updateLayout((l) => ({
+                                ...l,
+                                splitRatio: Math.max(
+                                  0.25,
+                                  Math.min(0.75, (e.clientX - box.left) / box.width),
+                                ),
+                              }));
+                            }
+                          }}
+                          onPointerUp={(e) => e.currentTarget.releasePointerCapture(e.pointerId)}
+                        />
+                      )}
+                      <DocumentPane
+                        notify={notify}
+                        pane={pane}
+                        tab={document}
+                        entry={paneEntry}
+                        label={(path) => {
+                          const t = tabs.find((t) => t.path === path);
+                          return t ? tabName(t) : name(path);
+                        }}
+                        settings={settings}
+                        setPreviewStyle={(previewStyle) =>
+                          setSettings((current) => ({
+                            ...current,
+                            previewStyle,
+                          }))
+                        }
+                        root={root}
+                        dark={dark}
+                        focused={pane.id === layout.activePaneId}
+                        split={layout.panes.length > 1}
+                        focus={() => {
+                          if (live.current.layout.activePaneId !== pane.id)
+                            updateLayout((l) => ({
+                              ...l,
+                              activePaneId: pane.id,
+                            }));
+                        }}
+                        activate={(path) => setActive(path, pane.id)}
+                        closePane={() =>
+                          updateLayout((l) => {
+                            const remaining = l.panes.filter((p) => p.id !== pane.id);
+                            if (!remaining.length) return l;
+                            remaining[0] = {
+                              ...remaining[0],
+                              tabs: [...new Set([...remaining[0].tabs, ...pane.tabs])],
+                              views: { ...pane.views, ...remaining[0].views },
+                            };
+                            return {
+                              ...l,
+                              panes: remaining,
+                              activePaneId: remaining[0].id,
+                            };
+                          })
+                        }
+                        change={(path, value) => change(value, path)}
+                        open={(path) => void open(path, true, pane.id)}
+                        ask={(s) => {
+                          setSelection(s);
+                          setAssistant(true);
+                        }}
+                        updateView={(path, view) => updateView(pane.id, path, view)}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </Tabs.Content>
+          )}
+        </main>
+        {!web && assistant && (
+          <Assistant
+            key={root}
+            vaultRoot={root}
+            active={active}
+            paths={context}
+            tabs={tabs.map((t) => t.path)}
+            selection={selection}
+            add={(p) => setContext(p)}
+            close={() => setAssistant(false)}
+            notify={notify}
+          />
         )}
-      </main>
-      {assistant && (
-        <Assistant
-          key={root}
-          vaultRoot={root}
-          active={active}
-          paths={context}
-          tabs={tabs.map((t) => t.path)}
-          selection={selection}
-          add={(p) => setContext(p)}
-          close={() => setAssistant(false)}
-          notify={notify}
-        />
-      )}
-      {switcher && (
-        <QuickSwitcher
-          entries={entries}
-          recent={recent}
-          close={() => setSwitcher(false)}
-          open={(path, beside) => {
-            setSwitcher(false);
-            if (beside) openBeside(path);
-            else void open(path, true);
-          }}
-        />
-      )}
-      {recoveryPreview &&
-        (() => {
-          const { expected, version, root: origin } = recoveryPreview;
-          const check = () => {
-            if (live.current.root !== origin)
-              throw new Error("The active folder changed. Reopen the comparison.");
-          };
-          const disk = expected.disk;
-          const actions = version
-            ? [
-                {
-                  label: "Restore version",
-                  primary: true,
-                  run: async () => {
-                    check();
-                    await window.folio.checkpoint(expected.path, expected.value, origin);
-                    const result = await window.folio.restore(
-                      expected.path,
-                      version.id,
-                      expected.doc.hash,
-                      origin,
-                    );
-                    check();
-                    if (result.status === "conflict") {
-                      setTabs((ts) =>
-                        ts.map((t) => (t.id === expected.id ? { ...t, disk: result.disk } : t)),
-                      );
-                      throw new Error(
-                        "The disk changed. Review the new conflict before restoring.",
-                      );
-                    }
-                    finishRecovery(origin, expected, result.document);
-                  },
-                },
-              ]
-            : disk
+        {switcher && (
+          <QuickSwitcher
+            entries={entries}
+            recent={recent}
+            close={() => setSwitcher(false)}
+            open={(path, beside) => {
+              setSwitcher(false);
+              if (beside) openBeside(path);
+              else void open(path, true);
+            }}
+          />
+        )}
+        {recoveryPreview &&
+          (() => {
+            const { expected, version, root: origin } = recoveryPreview;
+            const check = () => {
+              if (live.current.root !== origin)
+                throw new Error("The active folder changed. Reopen the comparison.");
+            };
+            const disk = expected.disk;
+            const actions = version
               ? [
                   {
-                    label: "Keep mine",
+                    label: "Restore version",
                     primary: true,
                     run: async () => {
                       check();
-                      await save(expected.path, disk.hash);
-                    },
-                  },
-                  {
-                    label: "Use disk",
-                    run: async () => {
-                      check();
                       await window.folio.checkpoint(expected.path, expected.value, origin);
-                      const latest = await window.folio.read(expected.path);
+                      const result = await window.folio.restore(
+                        expected.path,
+                        version.id,
+                        expected.doc.hash,
+                        origin,
+                      );
                       check();
-                      if (latest.hash !== disk.hash)
-                        throw new Error("The disk changed again. Reopen comparison.");
-                      finishRecovery(origin, expected, latest);
-                    },
-                  },
-                  {
-                    label: "Keep both",
-                    run: async () => {
-                      check();
-                      const copy = conflictCopyPath(expected.path);
-                      await window.folio.create(copy, expected.value, origin);
-                      check();
-                      const latest = await window.folio.read(expected.path);
-                      finishRecovery(origin, expected, latest);
-                      await refresh();
-                      check();
-                      await open(copy, true);
+                      if (result.status === "conflict") {
+                        setTabs((ts) =>
+                          ts.map((t) => (t.id === expected.id ? { ...t, disk: result.disk } : t)),
+                        );
+                        throw new Error(
+                          "The disk changed. Review the new conflict before restoring.",
+                        );
+                      }
+                      finishRecovery(origin, expected, result.document);
                     },
                   },
                 ]
-              : [];
-          return (
-            <RecoveryDialog
-              title={version ? "Review saved version" : "Resolve external change"}
-              left={{ label: "Current working copy", text: expected.value }}
-              right={{
-                label: version
-                  ? `${new Date(version.at).toLocaleString()} · ${version.author}`
-                  : `On disk · ${new Date(disk?.modified || 0).toLocaleString()}`,
-                text: version?.content || disk?.content || "",
-              }}
-              actions={actions}
-              close={() => setRecoveryPreview(undefined)}
-            />
-          );
-        })()}
-      {workspacesOpen && root && (
-        <Workspaces
-          key={root}
-          root={root}
-          entries={entries}
-          snapshot={workspaceSnapshot}
-          apply={applyWorkspace}
-          close={() => setWorkspacesOpen(false)}
-        />
-      )}
-      {exportNote && exportNote.root === root && (
-        <ExportDialog
-          key={root}
-          path={exportNote.path}
-          content={exportNote.content}
-          root={exportNote.root}
-          notify={notify}
-          close={() => setExportNote(undefined)}
-        />
-      )}
-      {dialog === "settings" && (
-        <Appearance
-          settings={settings}
-          change={setSettings}
-          close={() => {
-            setDialog(null);
-            setSettingsSection("appearance");
-          }}
-          root={root}
-          initialSection={settingsSection}
-          syncChanged={() => void loadSync(root)}
-        />
-      )}
-      {dialog && dialog !== "settings" && (
-        <div
-          className="modal-backdrop"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setDialog(null);
-          }}
-        >
-          <section
+              : disk
+                ? [
+                    {
+                      label: "Keep mine",
+                      primary: true,
+                      run: async () => {
+                        check();
+                        await save(expected.path, disk.hash);
+                      },
+                    },
+                    {
+                      label: "Use disk",
+                      run: async () => {
+                        check();
+                        await window.folio.checkpoint(expected.path, expected.value, origin);
+                        const latest = await window.folio.read(expected.path);
+                        check();
+                        if (latest.hash !== disk.hash)
+                          throw new Error("The disk changed again. Reopen comparison.");
+                        finishRecovery(origin, expected, latest);
+                      },
+                    },
+                    {
+                      label: "Keep both",
+                      run: async () => {
+                        check();
+                        const copy = conflictCopyPath(expected.path);
+                        await window.folio.create(copy, expected.value, origin);
+                        check();
+                        const latest = await window.folio.read(expected.path);
+                        finishRecovery(origin, expected, latest);
+                        await refresh();
+                        check();
+                        await open(copy, true);
+                      },
+                    },
+                  ]
+                : [];
+            return (
+              <RecoveryDialog
+                title={version ? "Review saved version" : "Resolve external change"}
+                left={{ label: "Current working copy", text: expected.value }}
+                right={{
+                  label: version
+                    ? `${new Date(version.at).toLocaleString()} · ${version.author}`
+                    : `On disk · ${new Date(disk?.modified || 0).toLocaleString()}`,
+                  text: version?.content || disk?.content || "",
+                }}
+                actions={actions}
+                close={() => setRecoveryPreview(undefined)}
+              />
+            );
+          })()}
+        {workspacesOpen && root && (
+          <Workspaces
+            key={root}
+            root={root}
+            entries={entries}
+            snapshot={workspaceSnapshot}
+            apply={applyWorkspace}
+            close={() => setWorkspacesOpen(false)}
+          />
+        )}
+        {exportNote && exportNote.root === root && (
+          <ExportDialog
+            key={root}
+            path={exportNote.path}
+            content={exportNote.content}
+            root={exportNote.root}
+            notify={notify}
+            close={() => setExportNote(undefined)}
+          />
+        )}
+        {dialog === "settings" && (
+          <Appearance
+            settings={settings}
+            change={setSettings}
+            close={() => {
+              setDialog(null);
+              setSettingsSection("appearance");
+            }}
+            root={root}
+            initialSection={settingsSection}
+            syncChanged={() => void loadSync(root)}
+          />
+        )}
+        {dialog && dialog !== "settings" && (
+          <Dialog
             className={`modal ${dialog === "history" ? "history-modal" : ""}`}
-            role="dialog"
-            aria-modal="true"
-            aria-label={dialog}
+            label={dialog === "trash" ? "Trash" : "Version history"}
+            close={() => setDialog(null)}
           >
             <header>
               <h2>{dialog === "trash" ? "Trash" : "Version history"}</h2>
@@ -2501,7 +2623,11 @@ export function App() {
                       className="push"
                       onClick={() => {
                         if (tab) {
-                          setRecoveryPreview({ root, expected: tab, version: v });
+                          setRecoveryPreview({
+                            root,
+                            expected: tab,
+                            version: v,
+                          });
                           setDialog(null);
                         }
                       }}
@@ -2543,15 +2669,15 @@ export function App() {
                 ))}
               </div>
             )}
-          </section>
-        </div>
-      )}
-      {toast && (
-        <div className="toast" role="status">
-          {toast}
-        </div>
-      )}
-    </div>
+          </Dialog>
+        )}
+        {toast && (
+          <div className="toast" role="status">
+            {toast}
+          </div>
+        )}
+      </div>
+    </Tabs.Root>
   );
 }
 function Assistant({
@@ -2583,17 +2709,21 @@ function Assistant({
   return (
     <aside className="assistant">
       <header>
-        <div className="seg">
+        <ToggleGroup.Root
+          type="single"
+          value={provider}
+          onValueChange={(value) => {
+            if (value) setProvider(value as "claude" | "codex");
+          }}
+          className="seg"
+          aria-label="Assistant provider"
+        >
           {(["claude", "codex"] as const).map((p) => (
-            <button
-              key={p}
-              className={p === provider ? "active" : ""}
-              onClick={() => setProvider(p)}
-            >
+            <ToggleGroup.Item value={p} key={p} className={p === provider ? "active" : ""}>
               {p === "claude" ? "Claude" : "Codex"}
-            </button>
+            </ToggleGroup.Item>
           ))}
-        </div>
+        </ToggleGroup.Root>
         <span className="push" />
         <Button label="New chat" onClick={() => (setMessages([]), setProposals([]))}>
           <Plus />

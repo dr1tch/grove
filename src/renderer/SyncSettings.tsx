@@ -4,7 +4,7 @@ import type { SyncConnectRequest, SyncStatus } from "../shared/types";
 
 const folderName = (root: string) => root.split("/").filter(Boolean).pop() || "notes";
 
-export function SyncSettings({ root, changed }: { root: string; changed?: () => void }) {
+function DesktopSyncSettings({ root, changed }: { root: string; changed?: () => void }) {
   const [status, setStatus] = useState<SyncStatus>();
   const [enabled, setEnabled] = useState(false);
   const [mode, setMode] = useState<"" | "create" | "existing">("");
@@ -206,5 +206,92 @@ export function SyncSettings({ root, changed }: { root: string; changed?: () => 
       </div>
       <p className="settings-help sync-note">Your files and git history stay as they are.</p>
     </>
+  );
+}
+
+function BrowserSyncSettings({ root }: { root: string }) {
+  const [status, setStatus] = useState<SyncStatus>(),
+    [error, setError] = useState(""),
+    [busy, setBusy] = useState(false);
+  useEffect(() => {
+    void window.folio
+      .syncStatus(root)
+      .then(setStatus)
+      .catch((reason) => setError(String(reason)));
+    return window.folio.onSync(setStatus);
+  }, [root]);
+  const cloud = root.startsWith("cloud:");
+  const state = status?.state;
+  const label =
+    state === "synced"
+      ? "Up to date"
+      : state === "syncing"
+        ? "Syncing…"
+        : state === "offline"
+          ? "Offline · changes saved here"
+          : state === "conflict"
+            ? "Conflict · both versions kept"
+            : state === "error"
+              ? "Sync error"
+              : status
+                ? "Off"
+                : "Checking…";
+  return (
+    <>
+      <p className="settings-intro">
+        {cloud
+          ? "Your vault is stored in Grove cloud."
+          : "Your vault is synced with a GitHub repository."}
+      </p>
+      <div className="settings-detail">
+        <strong>Vault</strong>
+        <span className="sync-value">{cloud ? "Grove cloud" : root.replace(/^github:/, "")}</span>
+      </div>
+      <div className="settings-detail">
+        <strong>Status</strong>
+        <span className={`sync-state ${state ?? ""}`} role="status">
+          {label}
+        </span>
+      </div>
+      <div className="settings-detail">
+        <strong>Last sync</strong>
+        <span>{status?.lastSync ? new Date(status.lastSync).toLocaleString() : "Not yet"}</span>
+      </div>
+      {status?.message && (
+        <small className={state === "error" ? "danger-text" : "warning-text"}>
+          {status.message}
+        </small>
+      )}
+      {error && <small className="danger-text">{error}</small>}
+      <div className="actions sync-actions">
+        <button
+          className="primary"
+          disabled={busy || state === "syncing"}
+          onClick={() => {
+            setBusy(true);
+            setError("");
+            void window.folio
+              .syncNow(root)
+              .then(setStatus)
+              .catch((reason) => setError(String(reason)))
+              .finally(() => setBusy(false));
+          }}
+        >
+          <RefreshCw size={14} /> Sync now
+        </button>
+      </div>
+      <p className="settings-help sync-note">
+        Edits are saved in this browser first, so nothing is lost offline. If a note changes in two
+        places, both versions are kept as separate files. Use Account to switch vaults or sign out.
+      </p>
+    </>
+  );
+}
+
+export function SyncSettings(props: { root: string; changed?: () => void }) {
+  return window.folio.platform === "web" ? (
+    <BrowserSyncSettings root={props.root} />
+  ) : (
+    <DesktopSyncSettings {...props} />
   );
 }

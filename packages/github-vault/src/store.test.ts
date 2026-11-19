@@ -185,3 +185,14 @@ it("preserves malformed JSON and size failures as validation errors", async () =
     new VaultStore(ref, "test", { fetch: transport }).read("a.md"),
   ).rejects.toMatchObject({ kind: "rejected" });
 });
+
+it("calls fetch as a transport function without binding the GitHub instance as its receiver", async () => {
+  const fake = createFakeGitHub({ "a.md": "base" });
+  let receiver: unknown = "not called";
+  const transport: typeof fetch = function (this: unknown, input, init) {
+    receiver = this;
+    return fake.fetch(input, init);
+  };
+  await new VaultStore(ref, "test", { fetch: transport }).head();
+  expect(receiver).toBeUndefined();
+});

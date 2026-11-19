@@ -28,7 +28,7 @@ await mkdir("qa-artifacts/sidebar", { recursive: true });
 let app;
 try {
   app = await electron.launch({
-    args: ["--ozone-platform=x11", ".", `--user-data-dir=${profile}`],
+    args: [".", "--ozone-platform=x11", `--user-data-dir=${profile}`],
   });
   const page = await app.firstWindow();
   page.setDefaultTimeout(10000);
@@ -60,7 +60,7 @@ try {
   await tip.waitFor();
   const tipId = await tip.getAttribute("id");
   assert.equal(await target.getAttribute("aria-describedby"), tipId);
-  const metrics = await tip.evaluate((el) => {
+  const metrics = await page.locator(".real-tooltip").evaluate((el) => {
     const r = el.getBoundingClientRect();
     return {
       left: r.left,
@@ -69,7 +69,6 @@ try {
       bottom: r.bottom,
       width: innerWidth,
       height: innerHeight,
-      text: el.textContent,
     };
   });
   assert.ok(
@@ -79,7 +78,7 @@ try {
       metrics.bottom <= metrics.height,
     JSON.stringify(metrics),
   );
-  assert.equal(metrics.text, path);
+  assert.equal(await tip.textContent(), path);
   await page.screenshot({ path: "qa-artifacts/sidebar/full-file-tooltip.png" });
   await page.keyboard.press("Escape");
   await tip.waitFor({ state: "hidden" });
@@ -87,28 +86,36 @@ try {
   await tip.waitFor();
   await page.keyboard.press("Tab");
   await tip.waitFor({ state: "hidden" });
-  const summary = page.locator(".folder-node > summary").filter({ hasText: folder }).first();
+  const summary = page
+    .locator(".folder-node > .folder-heading > .folder-trigger")
+    .filter({ hasText: folder })
+    .first();
   await summary.hover();
   const folderTip = page.getByRole("tooltip", { name: folder, exact: true });
   await folderTip.waitFor();
   assert.equal(await summary.getAttribute("title"), null);
   assert.equal(await summary.locator("[title]").count(), 0);
-  await page.screenshot({ path: "qa-artifacts/sidebar/full-folder-tooltip.png" });
-  await page.mouse.move(1000, 700);
+  await page.screenshot({
+    path: "qa-artifacts/sidebar/full-folder-tooltip.png",
+  });
+  await summary.blur();
+  await page.mouse.move(1000, 700, { steps: 10 });
   await folderTip.waitFor({ state: "hidden" });
-  const control = page.getByRole("button", { name: "Toggle light/dark", exact: true });
+  const control = page.getByRole("button", {
+    name: "Toggle light/dark",
+    exact: true,
+  });
   const originalStyle = await control.getAttribute("style");
   for (const position of [
     "top",
     "bottom",
     "left-edge",
     "right-edge",
-    "side-right",
-    "side-left",
-    "cramped",
+    "top-left",
+    "top-right",
+    "wide",
   ]) {
     await control.evaluate((el, position) => {
-      const tall = position.startsWith("side") || position === "cramped";
       Object.assign(el.style, {
         position: "fixed",
         zIndex: "9999",
@@ -116,26 +123,30 @@ try {
         top:
           position === "bottom"
             ? `${innerHeight - 40}px`
-            : tall
+            : position.startsWith("top")
               ? "8px"
-              : position === "top"
-                ? "8px"
-                : `${innerHeight / 2}px`,
-        left: ["left-edge", "side-right", "cramped"].includes(position)
+              : `${innerHeight / 2}px`,
+        left: ["left-edge", "top-left", "wide"].includes(position)
           ? "8px"
-          : ["right-edge", "side-left"].includes(position)
+          : ["right-edge", "top-right"].includes(position)
             ? `${innerWidth - 40}px`
             : `${innerWidth / 2}px`,
-        width: position === "cramped" ? `${innerWidth - 16}px` : "32px",
-        height: tall ? `${innerHeight - 16}px` : "32px",
+        width: position === "wide" ? `${innerWidth - 16}px` : "32px",
+        height: "32px",
       });
     }, position);
     await control.focus();
-    const tooltip = page.getByRole("tooltip", { name: "Toggle light/dark", exact: true });
+    const tooltip = page.getByRole("tooltip", {
+      name: "Toggle light/dark",
+      exact: true,
+    });
     await tooltip.waitFor();
-    const box = await tooltip.boundingBox();
+    const box = await page.locator(".real-tooltip").boundingBox();
     const anchor = await control.boundingBox();
-    const viewport = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }));
+    const viewport = await page.evaluate(() => ({
+      width: innerWidth,
+      height: innerHeight,
+    }));
     assert.ok(
       box.x >= 7 &&
         box.y >= 7 &&
@@ -146,8 +157,6 @@ try {
     if (position === "top") assert.ok(box.y >= anchor.y + anchor.height + 7, position);
     if (["bottom", "left-edge", "right-edge"].includes(position))
       assert.ok(box.y + box.height <= anchor.y - 7, position);
-    if (position === "side-right") assert.ok(box.x >= anchor.x + anchor.width + 7, position);
-    if (position === "side-left") assert.ok(box.x + box.width <= anchor.x - 7, position);
     await page.keyboard.press("Escape");
     await tooltip.waitFor({ state: "hidden" });
     await control.blur();
@@ -164,7 +173,7 @@ try {
   assert.ok(end.top > 0);
   assert.deepEqual(errors, []);
   console.log(
-    "PASS: sidebar scrolling and accessible tooltips; vertical preference, top/bottom/edge placement, horizontal fallback and cramped viewport bounds. Fixture:",
+    "PASS: sidebar scrolling and accessible tooltips; top/bottom placement, edge collision avoidance and cramped viewport bounds. Fixture:",
     temp,
   );
 } finally {

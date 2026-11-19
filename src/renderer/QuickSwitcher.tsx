@@ -1,3 +1,4 @@
+import { Dialog } from "./Dialog";
 import { useEffect, useRef, useState } from "react";
 import type { Entry } from "../shared/types";
 import { rankFiles } from "../shared/file-search";
@@ -13,32 +14,17 @@ export function QuickSwitcher({
   open: (path: string, beside: boolean) => void;
   close: () => void;
 }) {
-  const dialog = useRef<HTMLDialogElement>(null),
+  const dialog = useRef<HTMLDivElement>(null),
     input = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState(""),
     [index, setIndex] = useState(0);
   const results = rankFiles(query, entries, recent).slice(0, 50),
     selected = results[Math.min(index, results.length - 1)];
   useEffect(() => {
-    dialog.current!.showModal();
-    input.current!.focus();
-  }, []);
-  useEffect(() => {
     dialog.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
   }, [index]);
   return (
-    <dialog
-      ref={dialog}
-      className="quick-switcher"
-      aria-label="Quick file switcher"
-      onCancel={(event) => {
-        event.preventDefault();
-        close();
-      }}
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) close();
-      }}
-    >
+    <Dialog ref={dialog} className="quick-switcher" label="Quick file switcher" close={close}>
       <section onMouseDown={(event) => event.stopPropagation()}>
         <header>
           <input
@@ -114,6 +100,6 @@ export function QuickSwitcher({
         </div>
         <footer>↑ ↓ Select · Enter Open · Shift+Enter Open beside · Esc Close</footer>
       </section>
-    </dialog>
+    </Dialog>
   );
 }

@@ -1,3 +1,4 @@
+import { Toggle } from "radix-ui";
 import { useEffect, useMemo, useState } from "react";
 import type { ThemedToken } from "shiki";
 import { languageOf } from "../shared/files";
@@ -119,9 +120,9 @@ export function TextPreview({ path, value, dark }: { path: string; value: string
             : language}
         </span>
         <span role="status">{showTable ? "" : (current?.label ?? "Preparing preview…")}</span>
-        <button type="button" aria-pressed={source} onClick={() => setSource(!source)}>
+        <Toggle.Root type="button" pressed={source} onPressedChange={setSource}>
           {source ? "Preview" : "Source"}
-        </button>
+        </Toggle.Root>
         <CopyButton text={source ? value : (current?.code ?? value)} />
       </header>
       <div

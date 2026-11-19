@@ -1,5 +1,6 @@
+import { Dialog } from "./Dialog";
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
-import { wikiToMarkdown, resolveLink } from "../shared/links";
+import { resolveLink } from "../shared/links";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
@@ -13,6 +14,10 @@ const markdownSchema = {
 import { Workflow, ZoomIn, ZoomOut, Maximize2, X } from "lucide-react";
 import type { Document } from "../shared/types";
 import { CopyButton } from "./CopyButton";
+import { CodeBlockDialog } from "./CodeBlockDialog";
+import { CodeBlock as Code } from "./CodeBlock";
+import { markdownWithBlocks, replaceCodeBlock } from "@grove/core/code-block";
+import { useAsset } from "./useAsset";
 import { DrawingEmbed } from "./DrawingEmbed";
 import { kindOf } from "../shared/types";
 import { Viewer } from "./Viewer";
@@ -55,9 +60,8 @@ function AttachmentEmbed({
   );
 }
 let diagramId = 0;
-function Diagram({ source, dark }: { source: string; dark: boolean }) {
+export function Diagram({ source, dark }: { source: string; dark: boolean }) {
   const host = useRef<HTMLDivElement>(null);
-  const modal = useRef<HTMLDialogElement>(null);
   const viewport = useRef<HTMLDivElement>(null);
   const [error, setError] = useState("");
   const [show, setShow] = useState(false);
@@ -70,7 +74,6 @@ function Diagram({ source, dark }: { source: string; dark: boolean }) {
     : source.trim().split(/[\s\n]/)[0] || "Diagram";
   useEffect(() => {
     if (expanded) {
-      modal.current?.showModal();
       viewport.current?.scrollTo(0, 0);
     }
   }, [expanded]);
@@ -194,29 +197,9 @@ function Diagram({ source, dark }: { source: string; dark: boolean }) {
     </>
   );
   return expanded ? (
-    <dialog
-      ref={modal}
-      className="diagram-expanded"
-      aria-label={`${type} diagram`}
-      onCancel={(e) => {
-        e.preventDefault();
-        setExpanded(false);
-      }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) {
-          const rect = e.currentTarget.getBoundingClientRect();
-          if (
-            e.clientX < rect.left ||
-            e.clientX > rect.right ||
-            e.clientY < rect.top ||
-            e.clientY > rect.bottom
-          )
-            setExpanded(false);
-        }
-      }}
-    >
+    <Dialog className="diagram-expanded" label={`${type} diagram`} close={() => setExpanded(false)}>
       {content}
-    </dialog>
+    </Dialog>
   ) : (
     <div className="code-block diagram-block" data-export-ready={!!naturalWidth || !!error}>
       {content}
@@ -225,19 +208,7 @@ function Diagram({ source, dark }: { source: string; dark: boolean }) {
 }
 
 function Asset({ path, alt }: { path: string; alt?: string }) {
-  const [url, setUrl] = useState("");
-  useEffect(() => {
-    let live = true;
-    void window.folio
-      .asset(path)
-      .then((u) => {
-        if (live) setUrl(u);
-      })
-      .catch(() => {});
-    return () => {
-      live = false;
-    };
-  }, [path]);
+  const { url } = useAsset(path);
   return url ? (
     <figure>
       <img src={url} alt={alt || path} />
@@ -247,39 +218,6 @@ function Asset({ path, alt }: { path: string; alt?: string }) {
     <span className="muted">Image unavailable: {path}</span>
   );
 }
-function Code({ text, language, dark }: { text: string; language: string; dark: boolean }) {
-  const [html, setHtml] = useState("");
-  const [ready, setReady] = useState(false);
-  useEffect(() => {
-    let live = true;
-    void import("shiki").then(async (s) => {
-      try {
-        const rendered = await s.codeToHtml(text, {
-          lang: language || "text",
-          theme: dark ? "github-dark" : "github-light",
-        });
-        if (live) setHtml(rendered);
-      } catch {
-        if (live) setHtml("");
-      } finally {
-        if (live) setReady(true);
-      }
-    });
-    return () => {
-      live = false;
-    };
-  }, [text, language, dark]);
-  return (
-    <div className="code-block" data-export-ready={ready}>
-      <header>
-        <b>{language || "Text"}</b>
-        <span className="push" />
-        <CopyButton text={text} />
-      </header>
-      {html ? <div dangerouslySetInnerHTML={{ __html: html }} /> : <pre>{text}</pre>}
-    </div>
-  );
-}
 export function Markdown({
   doc,
   value,
@@ -287,6 +225,7 @@ export function Markdown({
   open,
   dark,
   vaultRoot,
+  embedded = false,
 }: {
   doc: Document;
   value: string;
@@ -294,7 +233,15 @@ export function Markdown({
   open: (path: string) => void;
   dark: boolean;
   vaultRoot?: string;
+  embedded?: boolean;
 }) {
+  const [editing, setEditing] = useState<{
+    original: string;
+    line: number;
+    body: string;
+    language: string;
+  }>();
+  const { value: transformed, blocks } = useMemo(() => markdownWithBlocks(value), [value]);
   const scroll = useRef<HTMLDivElement>(null);
   // Parents pass new callback objects on every render (for example while saving scroll position).
   // Stable wrappers keep the rendered document cached, so diagrams and code blocks are not remounted.
@@ -323,7 +270,6 @@ export function Markdown({
   }));
   let heading = 0;
   const resolve = (p: string) => resolveLink(doc.path, p, [])?.path || "";
-  const transformed = wikiToMarkdown(value);
   useEffect(() => {
     const el = scroll.current;
     if (!el) return;
@@ -343,12 +289,19 @@ export function Markdown({
       return (
         <>
           <h1 id={id}>{children}</h1>
-          <div className="meta">
-            Edited {new Date(doc.modified).toLocaleDateString()}
-            <span>·</span>
-            {value.trim().split(/\s+/).length} words<span>·</span>
-            {Math.max(1, Math.ceil(value.trim().split(/\s+/).length / 220))} min read
-          </div>
+          {!embedded && (
+            <div className="meta">
+              {/* Browser vaults have no file times, so the date is omitted there. */}
+              {doc.modified > 0 && (
+                <>
+                  Edited {new Date(doc.modified).toLocaleDateString()}
+                  <span>·</span>
+                </>
+              )}
+              {value.trim().split(/\s+/).length} words<span>·</span>
+              {Math.max(1, Math.ceil(value.trim().split(/\s+/).length / 220))} min read
+            </div>
+          )}
         </>
       );
     return level === 2 ? <h2 id={id}>{children}</h2> : <h3 id={id}>{children}</h3>;
@@ -413,12 +366,51 @@ export function Markdown({
             );
           },
           pre: ({ children }) => <>{children}</>,
-          code: ({ className, children, ...props }) => {
+          code: ({ className, children, node, ...props }) => {
             const text = (typeof children === "string" ? children : "").replace(/\n$/, "");
             const language = className?.replace("language-", "") || "";
             if (language === "mermaid") return <Diagram source={text} dark={dark} />;
-            if (className || (typeof children === "string" && children.endsWith("\n")))
-              return <Code text={text} language={language} dark={dark} />;
+            if (className || (typeof children === "string" && children.endsWith("\n"))) {
+              // Positions can shift when wiki references are transformed; edit only a verified source block.
+              const block = blocks.find(
+                (block) =>
+                  block.displayLine === node?.position?.start.line &&
+                  block.language === language &&
+                  block.body === text.replace(/\r\n?/g, "\n"),
+              );
+              const source = block?.body ?? text;
+              return (
+                <Code
+                  text={source}
+                  language={language}
+                  dark={dark}
+                  edit={
+                    !embedded && block
+                      ? () =>
+                          setEditing({
+                            original: value,
+                            line: block.line,
+                            body: block.body,
+                            language,
+                          })
+                      : undefined
+                  }
+                  preview={
+                    /^(md|markdown)$/i.test(language) ? (
+                      <Markdown
+                        doc={doc}
+                        value={source}
+                        onChange={() => {}}
+                        open={openPath}
+                        dark={dark}
+                        vaultRoot={vaultRoot}
+                        embedded
+                      />
+                    ) : undefined
+                  }
+                />
+              );
+            }
             return <code {...props}>{children}</code>;
           },
           table: ({ children }) => (
@@ -459,11 +451,22 @@ export function Markdown({
         {transformed}
       </ReactMarkdown>
     ),
-    [doc.path, doc.modified, value, transformed, dark, vaultRoot, openPath, change],
+    [
+      doc.path,
+      doc.modified,
+      value,
+      transformed,
+      dark,
+      vaultRoot,
+      openPath,
+      change,
+      embedded,
+      blocks,
+    ],
   );
   return (
     <div className="preview" ref={scroll}>
-      {headings.length >= 3 && (
+      {!embedded && headings.length >= 3 && (
         <nav className="document-outline" aria-label="Document outline">
           {headings.map((item, i) => (
             <button
@@ -486,6 +489,29 @@ export function Markdown({
         </nav>
       )}
       <article className="md">{renderedDocument}</article>
+      {editing && (
+        <CodeBlockDialog
+          source={editing.body}
+          language={editing.language}
+          close={() => setEditing(undefined)}
+          apply={(body) => change(replaceCodeBlock(value, editing.original, editing.line, body))}
+          renderPreview={(body, navigationBlocked) =>
+            /^(md|markdown)$/i.test(editing.language) ? (
+              <Markdown
+                doc={doc}
+                value={body}
+                onChange={() => {}}
+                open={navigationBlocked}
+                dark={dark}
+                vaultRoot={vaultRoot}
+                embedded
+              />
+            ) : (
+              <Code text={body} language={editing.language} dark={dark} />
+            )
+          }
+        />
+      )}
     </div>
   );
 }

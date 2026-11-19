@@ -20,7 +20,7 @@ await writeFile(
   join(vault, "docs", "Page.html"),
   "<h1>Hello</h1><p style='color:teal'>HTML preview</p>",
 );
-await copyFile("/home/dr1tch/Documents/261032848.pdf", join(vault, "Receipt.pdf"));
+await copyFile(new URL("./fixtures/sample.pdf", import.meta.url), join(vault, "Receipt.pdf"));
 // GROVE_VISUAL_DEV=1 runs the source build (after `vp run build`) instead of the installed app.
 const dev = process.env.GROVE_VISUAL_DEV;
 const app = await electron.launch({

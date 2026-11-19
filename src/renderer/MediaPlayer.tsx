@@ -1,3 +1,6 @@
+import { DropdownMenu, Slider } from "radix-ui";
+import { SliderField } from "./Controls";
+import { overlayContainer } from "./Overlay";
 import {
   useEffect,
   useRef,
@@ -71,6 +74,7 @@ export function useMediaState(ref: RefObject<HTMLMediaElement | null>) {
       ? media.buffered.end(media.buffered.length - 1) / duration
       : 0;
   return {
+    refresh: () => render((n) => n + 1),
     playing: Boolean(media && !media.paused && !media.ended),
     waiting,
     time,
@@ -156,7 +160,10 @@ export function PlayerControls({
     return rect.width ? Math.min(1, Math.max(0, (x - rect.left) / rect.width)) : 0;
   };
   const seek = (fraction: number) => {
-    if (media.current && state.duration) media.current.currentTime = fraction * state.duration;
+    if (media.current && state.duration) {
+      media.current.currentTime = fraction * state.duration;
+      state.refresh();
+    }
   };
   const endScrub = () => {
     if (scrub.current && !scrub.current.wasPaused) void media.current?.play().catch(() => {});
@@ -176,54 +183,48 @@ export function PlayerControls({
       onDoubleClick={(event) => event.stopPropagation()}
       onClick={(event) => event.stopPropagation()}
     >
-      <div
+      <Slider.Root
         ref={track}
         className="player-track"
-        role="slider"
-        tabIndex={0}
-        aria-label="Seek"
-        aria-valuemin={0}
-        aria-valuemax={Math.round(state.duration)}
-        aria-valuenow={Math.round(state.time)}
-        aria-valuetext={`${formatTime(state.time)} of ${formatTime(state.duration)}`}
+        min={0}
+        max={Math.max(1, state.duration)}
+        step={0.1}
+        value={[Math.min(state.time, state.duration)]}
+        disabled={!state.duration}
         onKeyDown={(event) => {
-          if (!media.current) return;
-          if (event.key === "ArrowLeft") skip(media.current, -5);
-          else if (event.key === "ArrowRight") skip(media.current, 5);
-          else if (event.key === "Home") media.current.currentTime = 0;
-          else if (event.key === "End" && state.duration)
-            media.current.currentTime = state.duration;
-          else return;
+          if (!media.current || !["ArrowLeft", "ArrowRight"].includes(event.key)) return;
+          skip(media.current, event.key === "ArrowLeft" ? -5 : 5);
+          state.refresh();
           event.preventDefault();
           event.stopPropagation();
         }}
-        onPointerMove={(event) => {
-          const fraction = at(event.clientX);
-          setHover(fraction);
-          if (scrub.current) seek(fraction);
-        }}
+        onValueChange={([value]) => seek(value / state.duration)}
+        onValueCommit={endScrub}
+        onPointerMove={(event) => setHover(at(event.clientX))}
         onPointerLeave={() => setHover(null)}
         onPointerDown={(event) => {
-          if (!media.current || event.button !== 0) return;
-          event.currentTarget.setPointerCapture(event.pointerId);
+          if (!media.current || event.button !== 0 || !state.duration) return;
           scrub.current = { wasPaused: media.current.paused };
           media.current.pause();
-          seek(at(event.clientX));
         }}
         onPointerUp={endScrub}
         onPointerCancel={endScrub}
       >
-        <span className="player-rail" />
+        <Slider.Track className="player-rail" />
         <span className="player-buffered" style={{ width: `${state.buffered * 100}%` }} />
         {hover !== null && <span className="player-hover" style={{ width: `${hover * 100}%` }} />}
         <span className="player-progress" style={{ width: `${state.progress * 100}%` }} />
-        <span className="player-thumb" style={{ left: `${state.progress * 100}%` }} />
+        <Slider.Thumb
+          className="player-thumb"
+          aria-label="Seek"
+          aria-valuetext={`${formatTime(state.time)} of ${formatTime(state.duration)}`}
+        />
         {hover !== null && state.duration > 0 && (
           <span className="player-time-tip" style={{ left: `${hover * 100}%` }}>
             {formatTime(hover * state.duration)}
           </span>
         )}
-      </div>
+      </Slider.Root>
       <div className="player-row">
         <div className="player-group">
           {button(
@@ -254,17 +255,18 @@ export function PlayerControls({
               () => media.current && toggleMute(media.current),
               state.muted ? <VolumeX /> : <Volume2 />,
             )}
-            <input
-              type="range"
+            <SliderField
               min={0}
               max={100}
+              step={1}
               aria-label="Volume"
               value={state.muted ? 0 : Math.round(state.volume * 100)}
-              onChange={(event) => {
+              onValueChange={(value) => {
                 const element = media.current;
                 if (!element) return;
-                element.volume = Number(event.target.value) / 100;
+                element.volume = value / 100;
                 element.muted = element.volume === 0;
+                state.refresh();
               }}
             />
           </div>
@@ -283,60 +285,49 @@ export function PlayerControls({
 
 function SpeedMenu({ media, rate }: { media: RefObject<HTMLMediaElement | null>; rate: number }) {
   const [open, setOpen] = useState(false);
-  const root = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const close = (event: Event) => {
-      if (
-        event instanceof KeyboardEvent
-          ? event.key === "Escape"
-          : !root.current?.contains(event.target as Node)
-      ) {
-        event.stopPropagation();
-        setOpen(false);
-      }
-    };
-    document.addEventListener("pointerdown", close, true);
-    document.addEventListener("keydown", close, true);
-    return () => {
-      document.removeEventListener("pointerdown", close, true);
-      document.removeEventListener("keydown", close, true);
-    };
-  }, [open]);
   return (
-    <div className="player-speed" ref={root}>
-      <Tooltip text="Playback speed (< >)" hidden={open}>
-        <button
-          type="button"
-          aria-label="Playback speed"
-          aria-haspopup="menu"
-          aria-expanded={open}
-          className={rate !== 1 ? "player-speed-active" : ""}
-          onClick={() => setOpen(!open)}
-        >
-          {rate === 1 ? <Gauge /> : <span className="player-rate">{rate}×</span>}
-        </button>
-      </Tooltip>
-      {open && (
-        <div className="player-menu" role="menu" aria-label="Playback speed">
-          {SPEEDS.map((speed) => (
+    <DropdownMenu.Root open={open} onOpenChange={setOpen}>
+      <div className="player-speed">
+        <Tooltip text="Playback speed (< >)" hidden={open}>
+          <DropdownMenu.Trigger asChild>
             <button
-              key={speed}
               type="button"
-              role="menuitemradio"
-              aria-checked={speed === rate}
-              onClick={() => {
-                if (media.current) media.current.playbackRate = speed;
-                setOpen(false);
-              }}
+              aria-label="Playback speed"
+              className={rate !== 1 ? "player-speed-active" : ""}
             >
-              <span>{speed === 1 ? "Normal" : `${speed}×`}</span>
-              {speed === rate && <Check />}
+              {rate === 1 ? <Gauge /> : <span className="player-rate">{rate}×</span>}
             </button>
-          ))}
-        </div>
-      )}
-    </div>
+          </DropdownMenu.Trigger>
+        </Tooltip>
+      </div>
+      <DropdownMenu.Portal container={overlayContainer()}>
+        <DropdownMenu.Content
+          className="player-menu grove-player-menu"
+          side="top"
+          align="end"
+          sideOffset={10}
+          collisionPadding={8}
+          aria-label="Playback speed"
+          onKeyDown={(event) => event.stopPropagation()}
+        >
+          <DropdownMenu.RadioGroup
+            value={String(rate)}
+            onValueChange={(value) => {
+              if (media.current) media.current.playbackRate = Number(value);
+            }}
+          >
+            {SPEEDS.map((speed) => (
+              <DropdownMenu.RadioItem key={speed} value={String(speed)}>
+                <span>{speed === 1 ? "Normal" : `${speed}×`}</span>
+                <DropdownMenu.ItemIndicator>
+                  <Check />
+                </DropdownMenu.ItemIndicator>
+              </DropdownMenu.RadioItem>
+            ))}
+          </DropdownMenu.RadioGroup>
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
   );
 }
 
