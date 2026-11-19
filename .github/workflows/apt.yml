@@ -55,6 +55,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release download --repo "$GITHUB_REPOSITORY" --pattern '*.deb' --dir site/pool
+      - name: Install APT tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends apt-utils
       - name: Build and sign the repository
         working-directory: site
         env:
